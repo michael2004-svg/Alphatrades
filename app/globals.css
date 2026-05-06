@@ -2,7 +2,6 @@
 
 @import "tailwindcss";
 
-/* Tailwind v4 design tokens */
 @theme {
   --color-primary: #1A56FF;
   --color-primary-dark: #0D3ACC;
@@ -15,11 +14,22 @@
   --font-mono: "JetBrains Mono", monospace;
 }
 
-/* Your app-level variables */
+/* ── Design system tokens ── */
 :root {
   --surface-dark: #070d1a;
   --card-dark: #0d1526;
   --border-dark: #1a2235;
+
+  /* Border radius scale */
+  --radius-sm: 6px;      /* inputs, small chips */
+  --radius-md: 10px;     /* cards, panels */
+  --radius-lg: 12px;     /* large cards */
+  --radius-btn: 22px;    /* action buttons, pills */
+  --radius-modal: 14px;  /* modals */
+
+  /* Spacing scale */
+  --gap-cards: 12px;     /* gap between cards in a grid */
+  --pad-card: 16px;      /* internal card padding */
 }
 
 * {
@@ -31,31 +41,19 @@
 html, body {
   height: 100%;
   background: var(--surface-dark);
-}	
+}
 
 /* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-::-webkit-scrollbar-track {
-  background: #0d1526;
-}
-::-webkit-scrollbar-thumb {
-  background: #1a2235;
-  border-radius: 2px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #1A56FF;
-}
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #0d1526; }
+::-webkit-scrollbar-thumb { background: #1a2235; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #1A56FF; }
 
 /* Number inputs */
 input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-}
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
-/* Gradient text utility */
+/* Gradient text */
 .gradient-text {
   background: linear-gradient(135deg, #1A56FF, #00C48C);
   -webkit-background-clip: text;
@@ -63,66 +61,43 @@ input[type="number"]::-webkit-inner-spin-button {
   background-clip: text;
 }
 
-/* Blue glow utility */
-.blue-glow {
-  box-shadow: 0 0 30px rgba(26, 86, 255, 0.25);
-}
+.blue-glow { box-shadow: 0 0 30px rgba(26, 86, 255, 0.25); }
+.chart-gradient { background: linear-gradient(180deg, rgba(26, 86, 255, 0.15) 0%, transparent 100%); }
 
-/* Chart gradient */
-.chart-gradient {
-  background: linear-gradient(180deg, rgba(26, 86, 255, 0.15) 0%, transparent 100%);
-}
-
-/* Animated border */
 @keyframes borderGlow {
   0%, 100% { border-color: rgba(26, 86, 255, 0.3); }
   50% { border-color: rgba(26, 86, 255, 0.8); }
 }
+.animated-border { animation: borderGlow 3s ease-in-out infinite; }
 
-.animated-border {
-  animation: borderGlow 3s ease-in-out infinite;
-}
-
-/* Hold button fill animation */
 @keyframes buttonFill {
   from { width: 0%; }
   to { width: 100%; }
 }
+.button-fill { animation: buttonFill 0.8s ease-in-out forwards; }
 
-.button-fill {
-  animation: buttonFill 0.8s ease-in-out forwards;
-}
-
-/* Scan progress */
-@keyframes scanProgress {
-  from { width: 0%; }
-  to { width: 100%; }
-}
-
-/* Ticker flash */
 @keyframes tickerFlash {
   0% { color: white; }
   30% { color: #1A56FF; transform: scale(1.05); }
   100% { color: white; transform: scale(1); }
 }
+.price-flash { animation: tickerFlash 0.25s ease-out; }
 
-.price-flash {
-  animation: tickerFlash 0.25s ease-out;
-}
-
-/* Win/Loss overlay */
 @keyframes winOverlay {
   0% { opacity: 0; transform: scale(0.8); }
   20% { opacity: 1; transform: scale(1.05); }
   80% { opacity: 1; transform: scale(1); }
   100% { opacity: 0; transform: scale(0.95); }
 }
+.win-overlay { animation: winOverlay 2s ease-in-out forwards; }
 
-.win-overlay {
-  animation: winOverlay 2s ease-in-out forwards;
+/* Slide up for modals */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
 }
+.animate-slide-up { animation: slideUp 0.22s ease-out forwards; }
 
-/* Noise texture overlay */
 .noise-overlay::before {
   content: '';
   position: absolute;
@@ -133,33 +108,28 @@ input[type="number"]::-webkit-inner-spin-button {
   z-index: 0;
 }
 
-/* Digit arc animation */
 @keyframes digitPulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.1); }
 }
+.digit-hot { animation: digitPulse 0.8s ease-in-out infinite; }
 
-.digit-hot {
-  animation: digitPulse 0.8s ease-in-out infinite;
-}
-
-/* Loading shimmer */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
-
 .shimmer {
   background: linear-gradient(90deg, #0d1526 25%, #1a2235 50%, #0d1526 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
 
-/* Grid pattern background */
 .grid-bg {
-  background-image: 
+  background-image:
     linear-gradient(rgba(26, 86, 255, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(26, 86, 255, 0.03) 1px, transparent 1px);
   background-size: 40px 40px;
-}	
+}
 
+/* Safe area for mobile bottom nav */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }

@@ -4,224 +4,264 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useUserStore } from '@/stores/useUserStore'
 import { usePositionStore } from '@/stores/usePositionStore'
-import { TrendingUp, TrendingDown, Clock, CheckCircle, XCircle } from 'lucide-react'
+import {
+  TrendingUp, TrendingDown, Clock,
+  CheckCircle, XCircle, BarChart2,
+} from 'lucide-react'
 
 type Tab = 'open' | 'closed' | 'transactions'
 
 export default function PositionsPage() {
   const [tab, setTab] = useState<Tab>('open')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const { user, isDemo, sessionPL, sessionStats } = useUserStore()
-  const { openPositions, closedPositions, setClosedPositions, setTransactions, transactions } = usePositionStore()
+  const {
+    openPositions, closedPositions,
+    setClosedPositions, setTransactions, transactions,
+  } = usePositionStore()
 
   useEffect(() => {
-    if (!user) return
-
-    const fetchHistory = async () => {
-      setLoading(true)
-      
-      const { data: positions } = await supabase
+    if (!user) { setLoading(false); return }
+    setLoading(true)
+    Promise.all([
+      supabase
         .from('positions')
         .select('*')
         .eq('user_id', user.id)
         .eq('is_demo', isDemo)
         .in('status', ['won', 'lost', 'refunded'])
         .order('closed_at', { ascending: false })
-        .limit(50)
-
-      if (positions) setClosedPositions(positions as any)
-
-      const { data: deps } = await supabase
+        .limit(50),
+      supabase
         .from('deposits')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(20)
-
+        .limit(20),
+    ]).then(([{ data: pos }, { data: deps }]) => {
+      if (pos) setClosedPositions(pos as any)
       if (deps) setTransactions(deps)
       setLoading(false)
-    }
-
-    fetchHistory()
+    })
   }, [user, isDemo])
 
-  const formatTime = (ts: string) => {
-    const d = new Date(ts)
-    return d.toLocaleString('en-KE', { 
+  const fmt = (ts: string) =>
+    new Date(ts).toLocaleString('en-KE', {
       month: 'short', day: 'numeric',
-      hour: '2-digit', minute: '2-digit' 
+      hour: '2-digit', minute: '2-digit',
     })
-  }
+
+  const winRate = sessionStats.total > 0
+    ? ((sessionStats.wins / sessionStats.total) * 100).toFixed(0)
+    : null
 
   return (
-    <div className="max-w-screen-lg mx-auto px-4 py-6">
-      {/* Session summary */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-[#0d1526] border border-[#1a2235] rounded-2xl p-4">
-          <div className="text-xs text-[#5A6380] uppercase tracking-wider mb-1">Session P/L</div>
-          <div className={`font-mono font-bold text-2xl ${sessionPL >= 0 ? 'text-win' : 'text-loss'}`}>
-            {sessionPL >= 0 ? '+' : ''}{sessionPL.toFixed(2)}
-          </div>
-          <div className="text-xs text-[#5A6380] mt-1">USD</div>
-        </div>
-        <div className="bg-[#0d1526] border border-[#1a2235] rounded-2xl p-4">
-          <div className="text-xs text-[#5A6380] uppercase tracking-wider mb-1">Win Rate</div>
-          <div className="font-mono font-bold text-2xl text-white">
-            {sessionStats.total > 0 
-              ? `${((sessionStats.wins / sessionStats.total) * 100).toFixed(0)}%`
-              : '—'}
-          </div>
-          <div className="text-xs text-[#5A6380] mt-1">{sessionStats.wins}W / {sessionStats.losses}L</div>
-        </div>
-        <div className="bg-[#0d1526] border border-[#1a2235] rounded-2xl p-4">
-          <div className="text-xs text-[#5A6380] uppercase tracking-wider mb-1">Total Trades</div>
-          <div className="font-mono font-bold text-2xl text-white">{sessionStats.total}</div>
-          <div className="text-xs text-[#5A6380] mt-1">This session</div>
-        </div>
-      </div>
+    <div className="min-h-[calc(100vh-64px)] flex flex-col pb-24 lg:pb-6">
+      <div className="flex-1 max-w-screen-lg mx-auto w-full px-4 sm:px-5 py-5 space-y-4">
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-[#0d1526] border border-[#1a2235] rounded-xl p-1 mb-6 w-fit">
-        {(['open', 'closed', 'transactions'] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all capitalize ${
-              tab === t ? 'bg-primary text-white' : 'text-[#5A6380] hover:text-white'
-            }`}
-          >
-            {t} {t === 'open' && openPositions.length > 0 && `(${openPositions.length})`}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      {loading && tab !== 'open' ? (
-        <div className="space-y-3">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-20 rounded-2xl shimmer" />
+        {/* Stats row — 3 equal columns, no overflow */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            {
+              label: 'Session P/L',
+              value: `${sessionPL >= 0 ? '+' : ''}$${Math.abs(sessionPL).toFixed(2)}`,
+              sub: 'USD this session',
+              valueColor: sessionPL >= 0 ? 'text-win' : 'text-loss',
+            },
+            {
+              label: 'Win Rate',
+              value: winRate ? `${winRate}%` : '—',
+              sub: `${sessionStats.wins}W · ${sessionStats.losses}L`,
+              valueColor: 'text-white',
+            },
+            {
+              label: 'Trades',
+              value: String(sessionStats.total),
+              sub: 'This session',
+              valueColor: 'text-white',
+            },
+          ].map(({ label, value, sub, valueColor }) => (
+            <div
+              key={label}
+              className="bg-[#0d1526] border border-[#1a2235] rounded-[10px] p-4 min-w-0"
+            >
+              <div className="text-[10px] text-[#5A6380] uppercase tracking-wider mb-2 truncate font-semibold">
+                {label}
+              </div>
+              <div className={`font-mono font-bold text-xl sm:text-2xl truncate ${valueColor}`}>
+                {value}
+              </div>
+              <div className="text-[10px] text-[#5A6380] mt-1 truncate">{sub}</div>
+            </div>
           ))}
         </div>
-      ) : (
-        <>
-          {tab === 'open' && (
-            <div className="space-y-3">
-              {openPositions.length === 0 ? (
-                <div className="text-center py-16">
-                  <Clock size={32} className="text-[#5A6380] mx-auto mb-3" />
-                  <p className="text-[#5A6380]">No open positions</p>
-                  <p className="text-xs text-[#2a3555] mt-1">Place a trade to see it here</p>
-                </div>
-              ) : openPositions.map(pos => (
-                <div key={pos.id} className="bg-[#0d1526] border border-[#1a2235] rounded-2xl p-4 flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                    ['even', 'over', 'match'].some(d => pos.direction.startsWith(d))
-                      ? 'bg-win/20' : 'bg-loss/20'
-                  }`}>
-                    {['even', 'over', 'match'].some(d => pos.direction.startsWith(d))
-                      ? <TrendingUp size={20} className="text-win" />
-                      : <TrendingDown size={20} className="text-loss" />
-                    }
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-white capitalize">{pos.direction.replace('_', ' ')}</div>
-                    <div className="text-xs text-[#5A6380]">{pos.asset} · {pos.trade_type.replace('_', '/')}</div>
-                    <div className="mt-2 w-full h-1 bg-[#1a2235] rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-primary transition-all"
-                        style={{ width: `${(pos.ticks_elapsed / pos.ticks_total) * 100}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-[#5A6380] mt-1">{pos.ticks_elapsed}/{pos.ticks_total} ticks</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-mono font-bold text-white">${pos.stake.toFixed(2)}</div>
-                    <div className="text-xs text-win mt-1">+${pos.payout.toFixed(2)} if win</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
 
-          {tab === 'closed' && (
-            <div className="space-y-3">
-              {closedPositions.length === 0 ? (
-                <div className="text-center py-16">
-                  <CheckCircle size={32} className="text-[#5A6380] mx-auto mb-3" />
-                  <p className="text-[#5A6380]">No closed trades yet</p>
-                </div>
-              ) : closedPositions.map(pos => (
-                <div key={pos.id} className={`bg-[#0d1526] border rounded-2xl p-4 flex items-center gap-4 ${
-                  pos.status === 'won' ? 'border-win/20' : 'border-loss/20'
-                }`}>
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                    pos.status === 'won' ? 'bg-win/20' : 'bg-loss/20'
-                  }`}>
-                    {pos.status === 'won' 
-                      ? <CheckCircle size={20} className="text-win" />
-                      : <XCircle size={20} className="text-loss" />
-                    }
+        {/* Tabs */}
+        <div className="flex gap-1 bg-[#0d1526] border border-[#1a2235] rounded-[10px] p-1 w-fit">
+          {(['open', 'closed', 'transactions'] as Tab[]).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`px-4 sm:px-5 py-2 rounded-[8px] text-xs sm:text-sm font-semibold transition-all capitalize whitespace-nowrap ${
+                tab === t ? 'bg-primary text-white' : 'text-[#5A6380] hover:text-white'
+              }`}>
+              {t}{t === 'open' && openPositions.length > 0 ? ` (${openPositions.length})` : ''}
+            </button>
+          ))}
+        </div>
+
+        {/* Loading skeleton */}
+        {loading && tab !== 'open' ? (
+          <div className="space-y-3">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-20 rounded-[10px] shimmer" />
+            ))}
+          </div>
+        ) : (
+          <>
+            {/* ── OPEN ── */}
+            {tab === 'open' && (
+              <div className="space-y-3">
+                {openPositions.length === 0 ? (
+                  <div className="text-center py-16 bg-[#0d1526] border border-[#1a2235] rounded-[10px]">
+                    <div className="w-16 h-16 rounded-[10px] bg-[#1a2235] flex items-center justify-center mx-auto mb-4">
+                      <Clock size={28} className="text-[#5A6380]" />
+                    </div>
+                    <p className="text-white font-semibold text-sm">No open positions</p>
+                    <p className="text-xs text-[#5A6380] mt-1.5">Place a trade to see it here</p>
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                        pos.status === 'won' ? 'bg-win/20 text-win' : 'bg-loss/20 text-loss'
-                      }`}>
-                        {pos.status?.toUpperCase()}
-                      </span>
-                      <span className="text-sm font-semibold text-white capitalize">
-                        {pos.direction.replace('_', ' ')}
-                      </span>
+                ) : openPositions.map(pos => {
+                  const isUp = ['even', 'over', 'match'].some(d => pos.direction.startsWith(d))
+                  const pct = Math.min((pos.ticks_elapsed / pos.ticks_total) * 100, 100)
+                  return (
+                    <div key={pos.id}
+                      className="bg-[#0d1526] border border-[#1a2235] rounded-[10px] p-4 flex items-center gap-4">
+                      <div className={`w-11 h-11 rounded-[8px] flex items-center justify-center flex-shrink-0 ${isUp ? 'bg-win/15' : 'bg-loss/15'}`}>
+                        {isUp
+                          ? <TrendingUp size={18} className="text-win" />
+                          : <TrendingDown size={18} className="text-loss" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-white text-sm capitalize truncate">
+                          {pos.direction.replace(/_/g, ' ')}
+                        </div>
+                        <div className="text-xs text-[#5A6380] truncate">
+                          {pos.asset} · {pos.trade_type.replace('_', '/')}
+                        </div>
+                        <div className="mt-2 w-full h-1.5 bg-[#1a2235] rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary rounded-full transition-all duration-300"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0 pl-2">
+                        <div className="font-mono font-bold text-white text-sm">${pos.stake.toFixed(2)}</div>
+                        <div className="text-xs text-win mt-1">+${pos.payout.toFixed(2)}</div>
+                      </div>
                     </div>
-                    <div className="text-xs text-[#5A6380] mt-1">
-                      {pos.asset} · Exit digit: <span className="text-white font-mono">{pos.exit_digit}</span>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* ── CLOSED ── */}
+            {tab === 'closed' && (
+              <div className="space-y-3">
+                {closedPositions.length === 0 ? (
+                  <div className="text-center py-16 bg-[#0d1526] border border-[#1a2235] rounded-[10px]">
+                    <div className="w-16 h-16 rounded-[10px] bg-[#1a2235] flex items-center justify-center mx-auto mb-4">
+                      <BarChart2 size={28} className="text-[#5A6380]" />
                     </div>
-                    <div className="text-xs text-[#5A6380]">
-                      {pos.closed_at ? formatTime(pos.closed_at) : ''}
-                    </div>
+                    <p className="text-white font-semibold text-sm">No closed trades yet</p>
+                    <p className="text-xs text-[#5A6380] mt-1.5">Completed trades will appear here</p>
                   </div>
-                  <div className="text-right">
-                    <div className={`font-mono font-bold text-lg ${
-                      pos.profit_loss && pos.profit_loss > 0 ? 'text-win' : 'text-loss'
+                ) : closedPositions.map(pos => (
+                  <div key={pos.id}
+                    className={`bg-[#0d1526] border rounded-[10px] p-4 flex items-center gap-4 ${
+                      pos.status === 'won' ? 'border-win/25' : 'border-loss/25'
                     }`}>
-                      {pos.profit_loss && pos.profit_loss > 0 ? '+' : ''}
-                      {pos.profit_loss?.toFixed(2) || '0.00'}
+                    <div className={`w-11 h-11 rounded-[8px] flex items-center justify-center flex-shrink-0 ${
+                      pos.status === 'won' ? 'bg-win/15' : 'bg-loss/15'
+                    }`}>
+                      {pos.status === 'won'
+                        ? <CheckCircle size={18} className="text-win" />
+                        : <XCircle    size={18} className="text-loss" />}
                     </div>
-                    <div className="text-xs text-[#5A6380]">Bal: ${((pos as any).balance_after || 0).toFixed(2)}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                          pos.status === 'won' ? 'bg-win/15 text-win' : 'bg-loss/15 text-loss'
+                        }`}>
+                          {pos.status?.toUpperCase()}
+                        </span>
+                        <span className="text-sm font-semibold text-white capitalize truncate">
+                          {pos.direction.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <div className="text-xs text-[#5A6380] mt-1 truncate">
+                        {pos.asset} · Exit: <span className="text-white font-mono">{pos.exit_digit}</span>
+                      </div>
+                      {pos.closed_at && (
+                        <div className="text-xs text-[#5A6380]">{fmt(pos.closed_at)}</div>
+                      )}
+                    </div>
+                    <div className="text-right flex-shrink-0 pl-2">
+                      <div className={`font-mono font-bold text-base ${
+                        (pos.profit_loss ?? 0) > 0 ? 'text-win' : 'text-loss'
+                      }`}>
+                        {(pos.profit_loss ?? 0) > 0 ? '+' : ''}
+                        {(pos.profit_loss ?? 0).toFixed(2)}
+                      </div>
+                      {(pos as any).balance_after != null && (
+                        <div className="text-xs text-[#5A6380]">
+                          Bal: ${(pos as any).balance_after.toFixed(2)}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
 
-          {tab === 'transactions' && (
-            <div className="space-y-3">
-              {transactions.length === 0 ? (
-                <div className="text-center py-16">
-                  <Clock size={32} className="text-[#5A6380] mx-auto mb-3" />
-                  <p className="text-[#5A6380]">No transactions yet</p>
-                </div>
-              ) : transactions.map((tx: any) => (
-                <div key={tx.id} className="bg-[#0d1526] border border-[#1a2235] rounded-2xl p-4 flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-                    <TrendingUp size={20} className="text-primary" />
+            {/* ── TRANSACTIONS ── */}
+            {tab === 'transactions' && (
+              <div className="space-y-3">
+                {transactions.length === 0 ? (
+                  <div className="text-center py-16 bg-[#0d1526] border border-[#1a2235] rounded-[10px]">
+                    <div className="w-16 h-16 rounded-[10px] bg-[#1a2235] flex items-center justify-center mx-auto mb-4">
+                      <Clock size={28} className="text-[#5A6380]" />
+                    </div>
+                    <p className="text-white font-semibold text-sm">No transactions yet</p>
+                    <p className="text-xs text-[#5A6380] mt-1.5">Deposits will appear here</p>
                   </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-white capitalize">Deposit via {tx.method || 'M-Pesa'}</div>
-                    <div className="text-xs text-[#5A6380]">
-                      {formatTime(tx.created_at)} · {tx.status}
+                ) : transactions.map((tx: any) => (
+                  <div key={tx.id}
+                    className="bg-[#0d1526] border border-[#1a2235] rounded-[10px] p-4 flex items-center gap-4">
+                    <div className="w-11 h-11 rounded-[8px] bg-primary/15 flex items-center justify-center flex-shrink-0">
+                      <TrendingUp size={18} className="text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-white text-sm truncate capitalize">
+                        Deposit via {tx.method || 'M-Pesa'}
+                      </div>
+                      <div className="text-xs text-[#5A6380] mt-0.5 truncate">
+                        {fmt(tx.created_at)} · <span className={tx.status === 'completed' ? 'text-win' : 'text-warning'}>{tx.status}</span>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0 pl-2">
+                      <div className="font-mono font-bold text-win text-sm">
+                        +${tx.amount_usd?.toFixed(2) || '0.00'}
+                      </div>
+                      <div className="text-xs text-[#5A6380]">
+                        KES {tx.amount_kes?.toFixed(0) || '—'}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-mono font-bold text-win">+${tx.amount_usd?.toFixed(2) || '0.00'}</div>
-                    <div className="text-xs text-[#5A6380]">KES {tx.amount_kes?.toFixed(0)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }

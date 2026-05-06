@@ -18,6 +18,7 @@ interface UserStore {
   setProfile: (profile: any) => void
   setRealBalance: (balance: number) => void
   setDemoBalance: (balance: number) => void
+  setIsDemo: (val: boolean) => void
   toggleDemo: () => void
   updateSessionPL: (amount: number, won: boolean) => void
   resetSession: () => void
@@ -27,6 +28,7 @@ export const useUserStore = create<UserStore>((set) => ({
   user: null,
   profile: null,
   realBalance: 0,
+  // Guest demo users start with $10,000
   demoBalance: 10000,
   isDemo: true,
   sessionPL: 0,
@@ -36,17 +38,25 @@ export const useUserStore = create<UserStore>((set) => ({
   setProfile: (profile) => set({ profile }),
   setRealBalance: (realBalance) => set({ realBalance }),
   setDemoBalance: (demoBalance) => set({ demoBalance }),
-  toggleDemo: () => set((state) => ({ isDemo: !state.isDemo })),
-  
+  setIsDemo: (val) => set({ isDemo: val }),
+
+  toggleDemo: () => set((state) => {
+    const next = !state.isDemo
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('Alphatrades_mode', next ? 'demo' : 'real')
+    }
+    return { isDemo: next }
+  }),
+
   updateSessionPL: (amount, won) => set((state) => ({
     sessionPL: state.sessionPL + amount,
     sessionStats: {
-      wins: state.sessionStats.wins + (won ? 1 : 0),
+      wins:   state.sessionStats.wins   + (won ? 1 : 0),
       losses: state.sessionStats.losses + (won ? 0 : 1),
-      total: state.sessionStats.total + 1,
+      total:  state.sessionStats.total  + 1,
     },
   })),
-  
+
   resetSession: () => set({
     sessionPL: 0,
     sessionStats: { wins: 0, losses: 0, total: 0 },

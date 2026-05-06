@@ -18,33 +18,39 @@ interface PriceStore {
   clearTicks: () => void
 }
 
-export const usePriceStore = create<PriceStore>((set, get) => ({
+const defaultDigitStats = (): Record<number, DigitStat> =>
+  Object.fromEntries(
+    Array.from({ length: 10 }, (_, i) => [i, { count: 0, percentage: 10 }])
+  )
+
+export const usePriceStore = create<PriceStore>((set) => ({
   ticks: [],
   currentPrice: 0,
   lastDigit: 0,
-  digitStats: Object.fromEntries(
-    Array.from({ length: 10 }, (_, i) => [i, { count: 0, percentage: 10 }])
-  ),
+  digitStats: defaultDigitStats(),
   connectionStatus: 'disconnected',
   activeAsset: '1HZ10V',
 
   addTick: (price: number, digit: number) => {
     set((state) => {
-      const newTicks = [...state.ticks, price].slice(-500)
-      
-      // Recalculate digit stats from last 100 ticks
+      // Keep last 500 ticks for chart, cap at 500
+      const newTicks = state.ticks.length >= 500
+        ? [...state.ticks.slice(-499), price]
+        : [...state.ticks, price]
+
+      // Digit stats computed from last 100 ticks
       const recentTicks = newTicks.slice(-100)
       const newDigitStats: Record<number, DigitStat> = {}
-      
+
       for (let d = 0; d <= 9; d++) {
         const count = recentTicks.filter(t => {
-          const tickDigit = Math.floor((t * 100) % 10)
-          return tickDigit === d
+          // Consistent digit extraction matching derivWs
+          return parseInt(t.toFixed(2).slice(-1), 10) === d
         }).length
         newDigitStats[d] = {
           count,
-          percentage: recentTicks.length > 0 
-            ? (count / recentTicks.length) * 100 
+          percentage: recentTicks.length > 0
+            ? (count / recentTicks.length) * 100
             : 10,
         }
       }
@@ -59,15 +65,12 @@ export const usePriceStore = create<PriceStore>((set, get) => ({
   },
 
   setConnectionStatus: (status) => set({ connectionStatus: status }),
-  
   setActiveAsset: (asset) => set({ activeAsset: asset }),
-  
-  clearTicks: () => set({ 
-    ticks: [], 
-    currentPrice: 0, 
+
+  clearTicks: () => set({
+    ticks: [],
+    currentPrice: 0,
     lastDigit: 0,
-    digitStats: Object.fromEntries(
-      Array.from({ length: 10 }, (_, i) => [i, { count: 0, percentage: 10 }])
-    )
+    digitStats: defaultDigitStats(),
   }),
 }))
