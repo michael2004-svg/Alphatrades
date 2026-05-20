@@ -16,7 +16,7 @@ export default function DigitBar() {
   const isClickable = tradeType === 'over_under' || tradeType === 'matches_differs'
 
   return (
-    <div className="flex items-end gap-1.5 w-full px-1 py-2">
+    <div className="flex items-end gap-1.5 w-full px-1 pt-1 pb-2">
       {Array.from({ length: 10 }, (_, d) => {
         const stat = digitStats[d] || { count: 0, percentage: 10 }
         const isHot = parseInt(hotDigit) === d

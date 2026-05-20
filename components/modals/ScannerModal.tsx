@@ -88,49 +88,46 @@ export default function ScannerModal({ onClose, onLoad }: Props) {
   }
 
   return (
-    /* Always centred on screen */
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div
-        className="bg-[#0d1526] border border-[#1a2235] w-full max-w-md rounded-[14px] overflow-hidden shadow-2xl animate-slide-up"
-        style={{ borderRadius: 'var(--radius-modal)' }}
-      >
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+      <div className="bg-[#0d1526] border border-[#1a2235] w-full max-w-md rounded-2xl shadow-2xl animate-slide-up">
+
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a2235]">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-[8px] bg-primary/15 flex items-center justify-center">
-              <Sparkles size={18} className="text-primary" />
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#1a2235]">
+          <div className="flex items-center gap-4">
+            <div className="w-11 h-11 rounded-[10px] bg-primary/15 flex items-center justify-center flex-shrink-0">
+              <Sparkles size={19} className="text-primary" />
             </div>
             <div>
               <h2 className="font-display font-bold text-base text-white">Entry Scanner</h2>
-              <p className="text-xs text-[#5A6380]">AI-powered market analysis</p>
+              <p className="text-xs text-[#5A6380] mt-0.5">AI-powered market analysis</p>
             </div>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-[8px] bg-[#1a2235] hover:bg-[#2a3555] flex items-center justify-center transition-colors">
+          <button onClick={onClose} className="w-9 h-9 rounded-[10px] bg-[#1a2235] hover:bg-[#2a3555] flex items-center justify-center transition-colors flex-shrink-0 ml-4">
             <X size={15} className="text-[#5A6380]" />
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="px-6 py-6 space-y-6">
           <p className="text-sm text-[#5A6380] leading-relaxed">
             Scans all <strong className="text-white">volatility / synthetic</strong> indices and finds the best entry based on tick patterns.
           </p>
 
           {/* Trade type */}
           <div>
-            <label className="text-xs font-bold text-[#5A6380] uppercase tracking-widest mb-2 block">Market Type</label>
+            <label className="text-[11px] font-bold text-[#5A6380] uppercase tracking-widest mb-3 block">Market Type</label>
             <div className="relative">
               <button onClick={() => setTypeOpen(!typeOpen)}
-                className="w-full flex items-center justify-between bg-[#070d1a] border border-[#1a2235] rounded-[8px] px-4 py-3 hover:border-primary/50 transition-all">
+                className="w-full flex items-center justify-between bg-[#070d1a] border border-[#1a2235] rounded-[10px] px-4 py-4 hover:border-primary/50 transition-all">
                 <span className="text-white font-semibold text-sm">{TRADE_TYPE_LABELS[tradeType]}</span>
                 <ChevronDown size={15} className={`text-[#5A6380] transition-transform duration-200 ${typeOpen ? 'rotate-180' : ''}`} />
               </button>
               {typeOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setTypeOpen(false)} />
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-[#070d1a] border border-[#1a2235] rounded-[10px] overflow-hidden z-20 shadow-xl">
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-[#070d1a] border border-[#1a2235] rounded-[12px] z-20 shadow-xl">
                     {Object.entries(TRADE_TYPE_LABELS).map(([key, label]) => (
                       <button key={key} onClick={() => { setTradeType(key as TradeTypeScan); setTypeOpen(false) }}
-                        className={`w-full text-left px-4 py-3 hover:bg-[#1a2235] transition-colors text-sm font-medium ${tradeType === key ? 'text-primary bg-primary/5' : 'text-white'}`}>
+                        className={`w-full text-left px-5 py-4 hover:bg-[#1a2235] transition-colors text-sm font-medium first:rounded-t-[12px] last:rounded-b-[12px] ${tradeType === key ? 'text-primary bg-primary/5' : 'text-white'}`}>
                         {label}
                       </button>
                     ))}
@@ -142,12 +139,12 @@ export default function ScannerModal({ onClose, onLoad }: Props) {
 
           {/* Progress */}
           {(scanning || result) && (
-            <div className="space-y-1.5">
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[#5A6380]">{scanning ? `Scanning ${currentScanAsset}...` : 'Scan complete'}</span>
                 <span className="font-mono font-bold text-primary">{scanning ? `${Math.round((progress / 100) * ASSETS.length)}/13` : '13/13'}</span>
               </div>
-              <div className="h-1.5 bg-[#070d1a] rounded-full overflow-hidden">
+              <div className="h-2 bg-[#070d1a] rounded-full overflow-hidden">
                 <div className="h-full rounded-full transition-all duration-300" style={{ width: `${result ? 100 : progress}%`, background: 'linear-gradient(90deg, #1A56FF, #00C48C)' }} />
               </div>
             </div>
@@ -155,11 +152,11 @@ export default function ScannerModal({ onClose, onLoad }: Props) {
 
           {/* Result */}
           {result && (
-            <div className="bg-[#070d1a] border border-win/25 rounded-[10px] p-4 flex items-start gap-3">
-              <CheckCircle size={18} className="text-win flex-shrink-0 mt-0.5" />
+            <div className="bg-[#070d1a] border border-win/25 rounded-[12px] p-5 flex items-start gap-4">
+              <CheckCircle size={19} className="text-win flex-shrink-0 mt-0.5" />
               <div>
                 <div className="text-sm font-bold text-white">{result.asset}</div>
-                <div className="text-xs text-[#5A6380] mt-0.5">
+                <div className="text-sm text-[#5A6380] mt-1.5">
                   {TRADE_TYPE_LABELS[tradeType]} — {result.prediction}
                   {' · '}
                   <span className="text-win font-semibold">{result.qualityScore.toFixed(0)}% quality</span>
@@ -171,13 +168,13 @@ export default function ScannerModal({ onClose, onLoad }: Props) {
           {/* Actions */}
           <div className="space-y-3 pt-1">
             <button onClick={runScan} disabled={scanning}
-              className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white font-bold py-3.5 rounded-[22px] transition-all shadow-lg shadow-primary/20">
+              className="w-full flex items-center justify-center gap-2.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white font-bold py-4 rounded-[22px] transition-all shadow-lg shadow-primary/20">
               <RefreshCw size={15} className={scanning ? 'animate-spin' : ''} />
               {scanning ? 'Scanning Markets...' : result ? 'Re-scan Markets' : 'Scan for Best Market'}
             </button>
             {result && (
               <button onClick={() => { onLoad(result.assetId, result.direction); onClose() }}
-                className="w-full bg-[#1a2235] hover:bg-[#2a3555] text-white font-semibold py-3 rounded-[22px] transition-all text-sm">
+                className="w-full bg-[#1a2235] hover:bg-[#2a3555] text-white font-semibold py-4 rounded-[22px] transition-all text-sm">
                 Load {ASSETS.find(a => a.id === result.assetId)?.short} →
               </button>
             )}

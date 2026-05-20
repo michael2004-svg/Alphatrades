@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useUserStore } from '@/stores/useUserStore'
+import Image from 'next/image'
 import {
-  TrendingUp, Bell, ChevronDown, LogOut,
+  Bell, ChevronDown, LogOut,
   Settings, Wallet, FlaskConical, BadgeDollarSign, AlertCircle
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -53,10 +54,8 @@ export default function Navbar() {
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
 
         {/* Logo */}
-        <div className="flex items-center gap-2.5 flex-shrink-0">
-          <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center shadow-lg shadow-primary/30">
-            <TrendingUp size={18} className="text-white" />
-          </div>
+        <div className="flex items-center gap-2.5 flex-shrink-0 cursor-pointer" onClick={() => router.push('/trade')}>
+          <Image src="/logo.png" alt="Alphatrades" width={36} height={36} className="rounded-[10px]" />
           <span className="font-display font-bold text-xl text-white hidden sm:block tracking-tight">
             Alphatrades
           </span>
@@ -65,9 +64,9 @@ export default function Navbar() {
         {/* Desktop Nav */}
         <nav className="hidden lg:flex items-center gap-1">
           {[
-            { label: 'Trade', href: '/trade' },
+            { label: 'Trade',     href: '/trade'     },
             { label: 'Positions', href: '/positions' },
-            { label: 'Wallet', href: '/wallet' },
+            { label: 'Wallet',    href: '/wallet'    },
           ].map(({ label, href }) => (
             <button
               key={label}
@@ -83,13 +82,11 @@ export default function Navbar() {
         <div className="flex items-center gap-2 sm:gap-3">
 
           {/* Demo/Real badge */}
-          <div
-            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${
-              isDemo
-                ? 'bg-amber-500/10 border-amber-500/25 text-amber-400'
-                : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
-            }`}
-          >
+          <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${
+            isDemo
+              ? 'bg-amber-500/10 border-amber-500/25 text-amber-400'
+              : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
+          }`}>
             {isDemo ? <FlaskConical size={12} /> : <BadgeDollarSign size={12} />}
             {isDemo ? 'DEMO' : 'REAL'}
           </div>
@@ -100,7 +97,7 @@ export default function Navbar() {
               onClick={() => setAccountOpen(!accountOpen)}
               className="flex items-center gap-2 bg-[#080d1a] border border-[#0d1525] rounded-2xl px-3 py-2 hover:border-primary/40 transition-all"
             >
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isDemo ? 'bg-amber-400' : 'bg-emerald-400'} shadow-sm`} />
+              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isDemo ? 'bg-amber-400' : 'bg-emerald-400'}`} />
               <span className="font-mono text-sm font-semibold text-white tabular-nums">
                 ${balance.toFixed(2)}
               </span>
@@ -113,51 +110,57 @@ export default function Navbar() {
             {accountOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setAccountOpen(false)} />
-                <div className="absolute right-0 top-full mt-2 w-56 bg-[#080d1a] border border-[#0d1525] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden z-50 animate-slide-up">
-                  <div className="px-4 pt-3 pb-2">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#4a5878] mb-2">Switch Account</p>
+                {/* Dropdown — no overflow-hidden, use rounded corners on children instead */}
+                <div className="absolute right-0 top-full mt-2 w-72 bg-[#080d1a] border border-[#0d1525] rounded-2xl shadow-2xl shadow-black/60 z-50 animate-slide-up">
+
+                  <div className="px-5 pt-5 pb-4 rounded-t-2xl">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#4a5878]">Switch Account</p>
                   </div>
 
                   <button
                     onClick={handleSwitchToReal}
-                    className={`w-full flex items-center justify-between px-4 py-3 hover:bg-[#0d1526] transition-colors ${!isDemo ? 'bg-emerald-500/5' : ''}`}
+                    className={`w-full flex items-center justify-between px-5 py-4 hover:bg-[#0d1526] transition-colors ${!isDemo ? 'bg-emerald-500/5' : ''}`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${!isDemo ? 'bg-emerald-500/15' : 'bg-[#0d1526]'}`}>
-                        <BadgeDollarSign size={15} className={!isDemo ? 'text-emerald-400' : 'text-[#4a5878]'} />
+                    <div className="flex items-center gap-3.5">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${!isDemo ? 'bg-emerald-500/15' : 'bg-[#0d1526]'}`}>
+                        <BadgeDollarSign size={17} className={!isDemo ? 'text-emerald-400' : 'text-[#4a5878]'} />
                       </div>
                       <div className="text-left">
                         <div className="text-sm font-semibold text-white">Real Account</div>
-                        <div className="text-xs text-[#4a5878]">
+                        <div className="text-xs text-[#4a5878] mt-1">
                           {user ? `$${realBalance.toFixed(2)}` : 'Login required'}
                         </div>
                       </div>
                     </div>
-                    {!isDemo && <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">ACTIVE</span>}
-                    {!user && <AlertCircle size={14} className="text-[#4a5878]" />}
+                    <div className="flex-shrink-0 ml-3">
+                      {!isDemo && <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full whitespace-nowrap">ACTIVE</span>}
+                      {!user && <AlertCircle size={14} className="text-[#4a5878]" />}
+                    </div>
                   </button>
 
                   <button
                     onClick={handleSwitchToDemo}
-                    className={`w-full flex items-center justify-between px-4 py-3 hover:bg-[#0d1526] transition-colors ${isDemo ? 'bg-amber-500/5' : ''}`}
+                    className={`w-full flex items-center justify-between px-5 py-4 hover:bg-[#0d1526] transition-colors ${isDemo ? 'bg-amber-500/5' : ''}`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isDemo ? 'bg-amber-500/15' : 'bg-[#0d1526]'}`}>
-                        <FlaskConical size={15} className={isDemo ? 'text-amber-400' : 'text-[#4a5878]'} />
+                    <div className="flex items-center gap-3.5">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isDemo ? 'bg-amber-500/15' : 'bg-[#0d1526]'}`}>
+                        <FlaskConical size={17} className={isDemo ? 'text-amber-400' : 'text-[#4a5878]'} />
                       </div>
                       <div className="text-left">
                         <div className="text-sm font-semibold text-white">Demo Account</div>
-                        <div className="text-xs text-[#4a5878]">${demoBalance.toFixed(2)} virtual</div>
+                        <div className="text-xs text-[#4a5878] mt-1">${demoBalance.toFixed(2)} virtual</div>
                       </div>
                     </div>
-                    {isDemo && <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">ACTIVE</span>}
+                    <div className="flex-shrink-0 ml-3">
+                      {isDemo && <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full whitespace-nowrap">ACTIVE</span>}
+                    </div>
                   </button>
 
                   {!isDemo && user && (
-                    <div className="px-4 pb-3 pt-1">
+                    <div className="px-5 pb-5 pt-3 rounded-b-2xl">
                       <button
                         onClick={() => { handleDeposit(); setAccountOpen(false) }}
-                        className="w-full bg-primary hover:bg-primary-dark text-white text-xs font-semibold py-2.5 rounded-xl transition-all"
+                        className="w-full bg-primary hover:bg-primary-dark text-white text-sm font-semibold py-3.5 rounded-xl transition-all"
                       >
                         + Deposit Funds
                       </button>
@@ -202,29 +205,29 @@ export default function Navbar() {
             {menuOpen && user && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-2 w-56 bg-[#080d1a] border border-[#0d1525] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden z-50 animate-slide-up">
-                  <div className="px-4 py-3.5 border-b border-[#0d1525]">
+                <div className="absolute right-0 top-full mt-2 w-56 bg-[#080d1a] border border-[#0d1525] rounded-2xl shadow-2xl shadow-black/60 z-50 animate-slide-up">
+                  <div className="px-5 py-4 border-b border-[#0d1525] rounded-t-2xl">
                     <div className="text-sm font-bold text-white truncate">{profile?.full_name || 'Trader'}</div>
-                    <div className="text-xs text-[#4a5878] truncate mt-0.5">{user?.email}</div>
+                    <div className="text-xs text-[#4a5878] truncate mt-1">{user?.email}</div>
                   </div>
-                  <div className="py-1">
+                  <div className="py-2">
                     <button
                       onClick={() => { router.push('/wallet'); setMenuOpen(false) }}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
+                      className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
                     >
                       <Wallet size={16} /> <span className="text-sm">Wallet</span>
                     </button>
                     <button
                       onClick={() => { router.push('/settings'); setMenuOpen(false) }}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
+                      className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
                     >
                       <Settings size={16} /> <span className="text-sm">Settings</span>
                     </button>
                   </div>
-                  <div className="border-t border-[#0d1525] py-1">
+                  <div className="border-t border-[#0d1525] py-2 rounded-b-2xl">
                     <button
                       onClick={handleLogout}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#0d1526] transition-colors text-loss"
+                      className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-[#0d1526] transition-colors text-loss"
                     >
                       <LogOut size={16} /> <span className="text-sm font-medium">Sign out</span>
                     </button>

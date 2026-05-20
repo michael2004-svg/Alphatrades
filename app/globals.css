@@ -20,28 +20,49 @@
   --card-dark: #0d1526;
   --border-dark: #1a2235;
 
-  /* Border radius scale */
-  --radius-sm: 6px;      /* inputs, small chips */
-  --radius-md: 10px;     /* cards, panels */
-  --radius-lg: 12px;     /* large cards */
-  --radius-btn: 22px;    /* action buttons, pills */
-  --radius-modal: 14px;  /* modals */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-btn: 22px;
+  --radius-modal: 14px;
 
-  /* Spacing scale */
-  --gap-cards: 12px;     /* gap between cards in a grid */
-  --pad-card: 16px;      /* internal card padding */
+  --gap-cards: 12px;
+  --pad-card: 16px;
 }
 
-* {
+/* FIX: was "* { margin: 0; padding: 0; }" which overrode all Tailwind padding/margin utilities.
+   box-sizing is the only safe universal reset — Tailwind preflight handles the rest. */
+*, *::before, *::after {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
 
 html, body {
   height: 100%;
   background: var(--surface-dark);
 }
+
+/* ── Semantic color utilities (Tailwind v4 compatible) ── */
+.bg-primary { background-color: #1A56FF; }
+.bg-primary-dark { background-color: #0D3ACC; }
+.bg-win { background-color: #00C48C; }
+.bg-loss { background-color: #FF4757; }
+.text-primary { color: #1A56FF; }
+.text-win { color: #00C48C; }
+.text-loss { color: #FF4757; }
+.border-primary { border-color: #1A56FF; }
+.border-win { border-color: #00C48C; }
+.border-loss { border-color: #FF4757; }
+
+/* Opacity variants */
+.bg-win\/20 { background-color: rgba(0,196,140,0.2); }
+.bg-win\/10 { background-color: rgba(0,196,140,0.1); }
+.bg-loss\/20 { background-color: rgba(255,71,87,0.2); }
+.bg-loss\/10 { background-color: rgba(255,71,87,0.1); }
+.bg-primary\/20 { background-color: rgba(26,86,255,0.2); }
+.bg-primary\/10 { background-color: rgba(26,86,255,0.1); }
+.border-win\/40 { border-color: rgba(0,196,140,0.4); }
+.border-loss\/40 { border-color: rgba(255,71,87,0.4); }
+.border-primary\/40 { border-color: rgba(26,86,255,0.4); }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -91,7 +112,6 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
 }
 .win-overlay { animation: winOverlay 2s ease-in-out forwards; }
 
-/* Slide up for modals */
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
@@ -131,5 +151,5 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
   background-size: 40px 40px;
 }
 
-/* Safe area for mobile bottom nav */
 .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
