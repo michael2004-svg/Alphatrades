@@ -8,7 +8,7 @@ import toast from 'react-hot-toast'
 interface Props { onClose: () => void }
 
 // OKX deposit address — update if address changes
-const OKX_USDT_ADDRESS = 'TQn9Y2khDD95R8uLEJBQ3JBVHaekN5VWHF'
+const OKX_USDT_ADDRESS = 'TFViLd13Zz8b5LVW8vy5WrdbAQ44GbSprG'
 // Path to the OKX QR code image (put the QR jpg in /public/images/)
 const OKX_QR_IMAGE = '/images/okx-qr.jpg'
 
