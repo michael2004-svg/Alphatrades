@@ -40,7 +40,6 @@ export const useUserStore = create<UserStore>((set) => ({
   setRealBalance: (realBalance) => set({ realBalance }),
   setDemoBalance: (demoBalance) => set({ demoBalance }),
 
-  // Atomic helpers — safe against stale closures
   addToRealBalance: (amount) => set((state) => ({
     realBalance: Math.max(0, state.realBalance + amount),
   })),

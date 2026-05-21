@@ -34,8 +34,8 @@ export const useTradeStore = create<TradeStore>((set) => ({
   tradeType: 'even_odd',
   direction: null,
   stake: 10,
-  selectedDigit: 5, // default digit (1-9 range)
-  ticks: 5,
+  selectedDigit: 5,
+  ticks: 1, // default 1 tick = instant result like Deriv/Binary.com
   mode: 'manual',
   autoConfig: {
     targetProfit: 200,
@@ -49,7 +49,6 @@ export const useTradeStore = create<TradeStore>((set) => ({
   setTradeType: (tradeType) => set({ tradeType, direction: null }),
   setDirection: (direction) => set({ direction }),
   setStake: (stake) => set({ stake: Math.max(0.1, stake) }),
-  // Clamp selectedDigit to 1–9 only
   setSelectedDigit: (d) => set({ selectedDigit: Math.max(1, Math.min(9, d)) }),
   setTicks: (ticks) => set({ ticks: Math.max(1, Math.min(ticks, 10)) }),
   setMode: (mode) => set({ mode }),
