@@ -154,7 +154,11 @@ export default function TradePage() {
           )
           won = r.won
           profitLoss = r.profitLoss
-          if (won) setDemoBalance(demoBalance + pos.stake + pos.payout)
+          if (won) {
+            // Read fresh balance from store to avoid stale closure bug
+            const currentDemoBalance = useUserStore.getState().demoBalance
+            setDemoBalance(currentDemoBalance + pos.stake + pos.payout)
+          }
         } else {
           // Authenticated — Supabase settlement
           const r = await settleTrade(
@@ -226,7 +230,10 @@ export default function TradePage() {
 
     if (result.success && result.positionId) {
       // Deduct demo balance immediately
-      if (isDemo) setDemoBalance(Math.max(0, demoBalance - stake))
+      if (isDemo) {
+        const currentDemoBalance = useUserStore.getState().demoBalance
+        setDemoBalance(Math.max(0, currentDemoBalance - stake))
+      }
 
       addOpenPosition({
         id: result.positionId,
@@ -461,7 +468,7 @@ export default function TradePage() {
             <PriceChart height={180} visibleTicks={100} />
           </div>
 
-          {/* Digit distribution — same gap as all other cards (gap-3) */}
+          {/* Digit distribution */}
           <div className="bg-[#0d1526] border border-[#1a2235] rounded-[10px] p-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[10px] font-semibold text-[#5A6380] uppercase tracking-wider">
@@ -474,7 +481,7 @@ export default function TradePage() {
             <DigitBar />
           </div>
 
-          {/* Open positions (desktop) */}
+  {/* Open positions (desktop) */}
           {openPositions.length > 0 && (
             <div className="bg-[#0d1526] border border-[#1a2235] rounded-[10px] p-4 hidden lg:block">
               <h3 className="text-[10px] font-semibold text-[#5A6380] uppercase tracking-wider mb-3">
@@ -560,7 +567,7 @@ export default function TradePage() {
             </div>
           )}
 
-          {/* Trade buttons — no hint text */}
+          {/* Trade buttons */}
           <div className="bg-[#0d1526] border border-[#1a2235] rounded-[10px] p-4">
             {renderTradeButtons()}
           </div>

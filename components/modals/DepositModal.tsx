@@ -12,6 +12,8 @@ const PAYMENT_METHODS = [
   { id: 'card',  label: 'Card',        desc: 'Visa, Mastercard',        icon: CreditCard, color: '#1A56FF' },
 ]
 const USDT_ADDRESS = 'TQn9Y2khDD95R8uLEJBQ3JBVHaekN5VWHF'
+const KES_RATE = 129 // 1 USD = 129 KES
+const MIN_DEPOSIT_USD = 10
 
 export default function DepositModal({ onClose }: Props) {
   const [step, setStep] = useState<'method' | 'mpesa' | 'usdt' | 'card'>('method')
@@ -21,16 +23,18 @@ export default function DepositModal({ onClose }: Props) {
   const [copied, setCopied] = useState(false)
   const [stkSent, setStkSent] = useState(false)
 
+  const amountNum = parseFloat(amount) || 0
+  const kesAmount = amountNum * KES_RATE
+
   const handleMpesaDeposit = async () => {
     if (!amount || !phone) { toast.error('Enter amount and phone number'); return }
-    const amtNum = parseFloat(amount)
-    if (amtNum < 100) { toast.error('Minimum deposit is KES 100'); return }
+    if (amountNum < MIN_DEPOSIT_USD) { toast.error(`Minimum deposit is $${MIN_DEPOSIT_USD}`); return }
     setLoading(true)
     try {
       const res = await fetch('/api/deposit/mpesa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: amtNum, phone }),
+        body: JSON.stringify({ amount: Math.round(kesAmount), phone }),
       })
       const data = await res.json()
       if (data.success) { setStkSent(true); toast.success('STK Push sent! Check your phone.') }
@@ -98,20 +102,33 @@ export default function DepositModal({ onClose }: Props) {
             <div className="space-y-5">
               <button onClick={() => setStep('method')} className="text-xs text-[#5A6380] hover:text-white flex items-center gap-1.5 transition-colors">← Back</button>
               <div>
-                <label className="block text-[10px] font-bold text-[#5A6380] uppercase tracking-widest mb-2.5">Amount (KES)</label>
+                <label className="block text-[10px] font-bold text-[#5A6380] uppercase tracking-widest mb-2.5">Amount (USD)</label>
                 <input
                   type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
-                  placeholder="e.g. 500" min="100"
+                  placeholder={`Min $${MIN_DEPOSIT_USD}`} min={MIN_DEPOSIT_USD} step="1"
                   className="w-full bg-[#070d1a] border border-[#1a2235] rounded-[10px] px-4 py-3.5 text-white placeholder-[#2a3555] focus:outline-none focus:border-primary transition-colors font-mono text-base"
                 />
+                {/* KES conversion */}
+                {amountNum >= MIN_DEPOSIT_USD && (
+                  <div className="mt-2 px-1 flex items-center justify-between">
+                    <span className="text-[11px] text-[#5A6380]">You pay in KES</span>
+                    <span className="text-[11px] font-mono font-semibold text-amber-400">
+                      KES {kesAmount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                )}
+                {amountNum > 0 && amountNum < MIN_DEPOSIT_USD && (
+                  <p className="mt-1.5 text-[11px] text-loss px-1">Minimum deposit is ${MIN_DEPOSIT_USD} (KES {MIN_DEPOSIT_USD * KES_RATE})</p>
+                )}
                 <div className="grid grid-cols-4 gap-2 mt-3">
-                  {[500, 1000, 2000, 5000].map((amt) => (
+                  {[10, 20, 50, 100].map((amt) => (
                     <button key={amt} onClick={() => setAmount(amt.toString())}
                       className={`py-2.5 text-xs font-semibold rounded-[10px] transition-all ${amount === amt.toString() ? 'bg-primary text-white' : 'bg-[#070d1a] border border-[#1a2235] text-[#5A6380] hover:border-primary/50 hover:text-white'}`}>
-                      {amt}
+                      ${amt}
                     </button>
                   ))}
                 </div>
+                <p className="text-[10px] text-[#5A6380] mt-2.5 px-1">Rate: 1 USD = {KES_RATE} KES</p>
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-[#5A6380] uppercase tracking-widest mb-2.5">M-Pesa Phone</label>
@@ -120,9 +137,13 @@ export default function DepositModal({ onClose }: Props) {
                   className="w-full bg-[#070d1a] border border-[#1a2235] rounded-[10px] px-4 py-3.5 text-white placeholder-[#2a3555] focus:outline-none focus:border-primary transition-colors font-mono"
                 />
               </div>
-              <button onClick={handleMpesaDeposit} disabled={loading}
-                className="w-full bg-win hover:bg-win/90 disabled:opacity-50 text-white font-bold py-4 rounded-[22px] transition-all shadow-lg shadow-win/20">
-                {loading ? <span className="flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Sending...</span> : 'Send M-Pesa Request'}
+              <button onClick={handleMpesaDeposit} disabled={loading || amountNum < MIN_DEPOSIT_USD}
+                className="w-full bg-win hover:bg-win/90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-[22px] transition-all shadow-lg shadow-win/20">
+                {loading
+                  ? <span className="flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Sending...</span>
+                  : amountNum >= MIN_DEPOSIT_USD
+                  ? `Send M-Pesa Request · KES ${kesAmount.toLocaleString('en-KE', { maximumFractionDigits: 0 })}`
+                  : 'Send M-Pesa Request'}
               </button>
             </div>
           )}
@@ -155,7 +176,7 @@ export default function DepositModal({ onClose }: Props) {
                 </button>
               </div>
               <div className="text-xs text-[#5A6380] space-y-2.5 bg-[#070d1a] rounded-[12px] p-4">
-                <div>• Minimum deposit: 10 USDT</div>
+                <div>• Minimum deposit: $10 USDT</div>
                 <div>• Network: TRON (TRC20) only</div>
                 <div>• Credits within 10–30 min after 1 confirmation</div>
               </div>

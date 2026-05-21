@@ -6,8 +6,9 @@ import { supabase } from '@/lib/supabase'
 import { useUserStore } from '@/stores/useUserStore'
 import Image from 'next/image'
 import {
-  Bell, ChevronDown, LogOut,
-  Settings, Wallet, FlaskConical, BadgeDollarSign, AlertCircle
+  ChevronDown, LogOut,
+  Settings, Wallet, FlaskConical, BadgeDollarSign, AlertCircle,
+  ArrowDownToLine, ArrowUpFromLine, History, UserCircle2
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -31,6 +32,15 @@ export default function Navbar() {
       return
     }
     router.push('/wallet?deposit=true')
+  }
+
+  const handleWithdraw = () => {
+    if (!user) {
+      toast.error('Please log in to withdraw funds')
+      router.push('/login')
+      return
+    }
+    router.push('/wallet?withdraw=true')
   }
 
   const handleSwitchToReal = () => {
@@ -110,7 +120,6 @@ export default function Navbar() {
             {accountOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setAccountOpen(false)} />
-                {/* Dropdown — no overflow-hidden, use rounded corners on children instead */}
                 <div className="absolute right-0 top-full mt-2 w-72 bg-[#080d1a] border border-[#0d1525] rounded-2xl shadow-2xl shadow-black/60 z-50 animate-slide-up">
 
                   <div className="px-5 pt-5 pb-4 rounded-t-2xl">
@@ -189,11 +198,7 @@ export default function Navbar() {
             </button>
           )}
 
-          <button className="w-9 h-9 rounded-2xl bg-[#080d1a] border border-[#0d1525] flex items-center justify-center hover:border-primary/40 transition-all relative">
-            <Bell size={16} className="text-[#4a5878]" />
-            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-primary rounded-full" />
-          </button>
-
+          {/* Profile menu — Bell removed */}
           <div className="relative">
             <button
               onClick={() => user ? setMenuOpen(!menuOpen) : router.push('/login')}
@@ -205,31 +210,49 @@ export default function Navbar() {
             {menuOpen && user && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-2 w-56 bg-[#080d1a] border border-[#0d1525] rounded-2xl shadow-2xl shadow-black/60 z-50 animate-slide-up">
+                <div className="absolute right-0 top-full mt-2 w-60 bg-[#080d1a] border border-[#0d1525] rounded-2xl shadow-2xl shadow-black/60 z-50 animate-slide-up">
                   <div className="px-5 py-4 border-b border-[#0d1525] rounded-t-2xl">
                     <div className="text-sm font-bold text-white truncate">{profile?.full_name || 'Trader'}</div>
                     <div className="text-xs text-[#4a5878] truncate mt-1">{user?.email}</div>
                   </div>
                   <div className="py-2">
                     <button
-                      onClick={() => { router.push('/wallet'); setMenuOpen(false) }}
-                      className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
+                      onClick={() => { router.push('/wallet?deposit=true'); setMenuOpen(false) }}
+                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
                     >
-                      <Wallet size={16} /> <span className="text-sm">Wallet</span>
+                      <ArrowDownToLine size={15} /> <span className="text-sm">Deposit</span>
+                    </button>
+                    <button
+                      onClick={() => { router.push('/wallet?withdraw=true'); setMenuOpen(false) }}
+                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
+                    >
+                      <ArrowUpFromLine size={15} /> <span className="text-sm">Withdraw</span>
+                    </button>
+                    <button
+                      onClick={() => { router.push('/wallet'); setMenuOpen(false) }}
+                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
+                    >
+                      <Wallet size={15} /> <span className="text-sm">Account</span>
+                    </button>
+                    <button
+                      onClick={() => { router.push('/positions'); setMenuOpen(false) }}
+                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
+                    >
+                      <History size={15} /> <span className="text-sm">History</span>
                     </button>
                     <button
                       onClick={() => { router.push('/settings'); setMenuOpen(false) }}
-                      className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
+                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
                     >
-                      <Settings size={16} /> <span className="text-sm">Settings</span>
+                      <Settings size={15} /> <span className="text-sm">Settings</span>
                     </button>
                   </div>
                   <div className="border-t border-[#0d1525] py-2 rounded-b-2xl">
                     <button
                       onClick={handleLogout}
-                      className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-[#0d1526] transition-colors text-loss"
+                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#0d1526] transition-colors text-loss"
                     >
-                      <LogOut size={16} /> <span className="text-sm font-medium">Sign out</span>
+                      <LogOut size={15} /> <span className="text-sm font-medium">Sign out</span>
                     </button>
                   </div>
                 </div>
