@@ -33,14 +33,14 @@ export default function LoginPage() {
       setLoading(false)
       return
     }
-    localStorage.setItem('Alphatrades_mode', 'real')
+    localStorage.setItem('Binaryflow_mode', 'real')
     toast.success('Welcome back!')
     router.push('/trade')
   }
 
   const handleTryDemo = () => {
     setDemoLoading(true)
-    localStorage.setItem('Alphatrades_mode', 'demo')
+    localStorage.setItem('Binaryflow_mode', 'demo')
     router.push('/trade?demo=true')
   }
 
@@ -56,8 +56,8 @@ export default function LoginPage() {
       {/* Left branding — desktop only */}
       <div className="hidden lg:flex flex-col justify-between w-[52%] p-14 relative border-r border-[#1a2235]">
         <div className="flex items-center gap-3">
-          <Image src="/logo.png" alt="Alphatrades" width={40} height={40} className="rounded-[10px]" />
-          <span className="font-display font-bold text-xl text-white tracking-tight">Alphatrades</span>
+          <Image src="/logo.png" alt="Binaryflow" width={40} height={40} className="rounded-[10px]" />
+          <span className="font-display font-bold text-xl text-white tracking-tight">Binaryflow</span>
         </div>
         <div className="space-y-8">
           <div>
@@ -90,7 +90,7 @@ export default function LoginPage() {
           </div>
         </div>
         {/* FIX: was #2a3555 (invisible) → #5A6380 */}
-        <div className="text-[#5A6380] text-xs">© 2026 Alphatrades. All rights reserved.</div>
+        <div className="text-[#5A6380] text-xs">© 2026 Binaryflow. All rights reserved.</div>
       </div>
 
       {/* Right: form */}
@@ -99,8 +99,8 @@ export default function LoginPage() {
 
           {/* Mobile logo */}
           <div className="flex flex-col items-center gap-3 mb-10 lg:hidden">
-            <Image src="/logo.png" alt="Alphatrades" width={52} height={52} className="rounded-[12px]" />
-            <span className="font-display font-bold text-xl text-white tracking-tight">Alphatrades</span>
+            <Image src="/logo.png" alt="Binaryflow" width={52} height={52} className="rounded-[12px]" />
+            <span className="font-display font-bold text-xl text-white tracking-tight">Binaryflow</span>
           </div>
 
           <div className="mb-8">
