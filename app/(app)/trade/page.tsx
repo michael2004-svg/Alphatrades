@@ -16,7 +16,7 @@ import AutoTradePanel from '@/components/trade/AutoTradePanel'
 import TradeButton from '@/components/trade/TradeButton'
 import DepositModal from '@/components/modals/DepositModal'
 import ScannerModal from '@/components/modals/ScannerModal'
-import { Wifi, WifiOff, Loader, Sparkles, Zap, TrendingUp, TrendingDown } from 'lucide-react'
+import { Wifi, WifiOff, Loader, Sparkles, Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const TRADE_TYPES = [
@@ -25,7 +25,7 @@ const TRADE_TYPES = [
   { id: 'over_under',      label: 'Over / Under'    },
 ] as const
 
-// ── Win/Loss overlay ──────────────────────────────────────────────────────
+// ── Win/Loss overlay ─────────────────────────────────────────────────────
 function TradeResultOverlay({
   result, onDone,
 }: { result: { won: boolean; amount: number } | null; onDone: () => void }) {
@@ -41,7 +41,7 @@ function TradeResultOverlay({
         <div className="text-5xl mb-2">{result.won ? '🏆' : '💸'}</div>
         <div className="font-display font-bold text-3xl">{result.won ? 'WIN!' : 'LOST'}</div>
         <div className="font-mono text-xl mt-1">
-          {result.won ? '+' : ''}{result.amount.toFixed(2)} USD
+          {result.won ? '+' : '-'}${Math.abs(result.amount).toFixed(2)} USD
         </div>
       </div>
     </div>
@@ -66,7 +66,6 @@ function settleDemoLocal(
       ? selectedDigit != null && exitDigit > selectedDigit
       : selectedDigit != null && exitDigit < selectedDigit
   }
-  // profitLoss = net profit (payout) on win, or -stake on loss
   return { won, profitLoss: won ? payout : -stake }
 }
 
@@ -78,7 +77,7 @@ export default function TradePage() {
   } = usePriceStore()
   const {
     tradeType, stake, selectedDigit, ticks: tradeTicks,
-    mode, setTradeType, setDirection, setMode,
+    mode, setTradeType, setDirection, setMode, setSelectedDigit,
     isAutoRunning, setIsAutoRunning,
     autoConfig, recordAutoResult, resetAutoSession,
   } = useTradeStore()
@@ -108,7 +107,7 @@ export default function TradePage() {
     if (searchParams.get('scanner') === 'true') setShowScanner(true)
   }, [searchParams])
 
-  // ── WS connection ────────────────────────────────────────────────────
+  // ── WS connection ─────────────────────────────────────────────────────
   useEffect(() => {
     const ws = getDerivWs()
 
@@ -128,7 +127,7 @@ export default function TradePage() {
     return () => { unsubTick(); unsubStatus() }
   }, [activeAsset])
 
-  // ── Real-time settlement — runs on every tick ─────────────────────────
+  // ── Real-time settlement — runs on every tick ────────────────────────
   useEffect(() => {
     if (openPositions.length === 0 || currentPrice === 0) return
 
@@ -146,7 +145,7 @@ export default function TradePage() {
         let profitLoss = 0
 
         if (pos.id.startsWith('demo_')) {
-          // ── Guest demo — pure client-side ──
+          // Guest demo — pure client-side
           const r = settleDemoLocal(
             pos.direction, pos.trade_type,
             exitDigit, pos.selected_digit,
@@ -156,15 +155,12 @@ export default function TradePage() {
           profitLoss = r.profitLoss
 
           if (won) {
-            // On win: return stake + add profit to balance
-            // stake was already deducted when trade was placed,
-            // so we add back stake + payout (profit portion)
+            // Return stake + add profit. Stake was already deducted on placement.
             addToDemoBalance(pos.stake + pos.payout)
           }
-          // On loss: nothing to do — stake was already deducted on placement
 
         } else {
-          // ── Authenticated — Supabase settlement ──
+          // Authenticated — Supabase settlement
           const r = await settleTrade(
             pos.id, exitPrice, exitDigit,
             pos.user_id || '', pos.is_demo
@@ -174,16 +170,13 @@ export default function TradePage() {
           profitLoss = r.profitLoss
 
           if (won) {
+            // Return stake + profit client-side; DB is source of truth on next sync
             if (pos.is_demo) {
-              // Authenticated demo win
               addToDemoBalance(pos.stake + pos.payout)
             } else {
-              // Real money win — add stake back + profit
               addToRealBalance(pos.stake + pos.payout)
             }
           }
-          // Supabase also updates DB balance via settleTrade RPC —
-          // the next balance fetch will sync the real source of truth
         }
 
         closePosition(pos.id, won ? 'won' : 'lost', {
@@ -193,8 +186,7 @@ export default function TradePage() {
           closed_at: new Date().toISOString(),
         })
         updateSessionPL(profitLoss, won)
-        // Show net P&L in overlay (positive = profit, negative = loss amount)
-        setTradeResult({ won, amount: won ? profitLoss : -pos.stake })
+        setTradeResult({ won, amount: won ? profitLoss : pos.stake })
 
         won
           ? toast.success(`+$${profitLoss.toFixed(2)} Won!`, { icon: '🏆' })
@@ -223,7 +215,7 @@ export default function TradePage() {
     settle()
   }, [ticks.length])
 
-  // ── Place single trade ───────────────────────────────────────────────
+  // ── Place single trade ────────────────────────────────────────────────
   const handleTrade = useCallback(async (dir: string) => {
     if (placingTrade) return
     if (connectionStatus !== 'connected') { toast.error('Not connected'); return }
@@ -245,7 +237,7 @@ export default function TradePage() {
     })
 
     if (result.success && result.positionId) {
-      // Deduct stake from balance immediately on placement
+      // Deduct stake immediately on placement
       if (isDemo) {
         addToDemoBalance(-stake)
       } else {
@@ -282,7 +274,7 @@ export default function TradePage() {
     tradeTicks, selectedDigit, lastDigit, mode,
   ])
 
-  // ── Auto trade ───────────────────────────────────────────────────────
+  // ── Auto trade ────────────────────────────────────────────────────────
   const startAutoTrade = useCallback((dir: string) => {
     if (isAutoRunning) return
     setIsAutoRunning(true)
@@ -314,6 +306,7 @@ export default function TradePage() {
     toast('Auto trading stopped', { duration: 2000 })
   }, [])
 
+  // Clean up auto on unmount
   useEffect(() => {
     return () => {
       if (autoIntervalRef.current) clearInterval(autoIntervalRef.current)
@@ -331,7 +324,7 @@ export default function TradePage() {
     setDirection(dir)
   }, [handleAssetChange])
 
-  // ── Render trade buttons ─────────────────────────────────────────────
+  // ── Render trade buttons ──────────────────────────────────────────────
   const renderTradeButtons = () => {
     const isAuto = mode === 'auto'
 
@@ -416,7 +409,7 @@ export default function TradePage() {
       <div className="flex-1 max-w-screen-xl mx-auto w-full px-3 sm:px-4 py-3
         grid grid-cols-1 lg:grid-cols-[1fr_370px] gap-3">
 
-        {/* ── LEFT: Chart column ── */}
+        {/* ── LEFT: Chart column ─────────────────────────────────────── */}
         <div className="flex flex-col gap-3">
 
           {/* Asset selector row */}
@@ -468,7 +461,7 @@ export default function TradePage() {
             <PriceChart height={180} visibleTicks={100} />
           </div>
 
-          {/* Digit distribution — 1 to 9 */}
+          {/* Digit distribution */}
           <div className="bg-[#0d1526] border border-[#1a2235] rounded-[10px] p-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[10px] font-semibold text-[#5A6380] uppercase tracking-wider">
@@ -480,7 +473,8 @@ export default function TradePage() {
             </div>
             <DigitBar />
           </div>
-   {/* Open positions (desktop) */}
+
+          {/* Open positions (desktop) */}
           {openPositions.length > 0 && (
             <div className="bg-[#0d1526] border border-[#1a2235] rounded-[10px] p-4 hidden lg:block">
               <h3 className="text-[10px] font-semibold text-[#5A6380] uppercase tracking-wider mb-3">
@@ -510,8 +504,7 @@ export default function TradePage() {
             </div>
           )}
         </div>
-
-        {/* ── RIGHT: Trading panel ── */}
+   {/* ── RIGHT: Trading panel ───────────────────────────────────── */}
         <div className="flex flex-col gap-3">
 
           {/* Trade type tabs */}
@@ -556,13 +549,33 @@ export default function TradePage() {
             </div>
           )}
 
-          {/* Selected digit (1–9 only, clickable from DigitBar) */}
+          {/* ── Selected digit interactive picker (1–9) ── */}
           {tradeType !== 'even_odd' && (
-            <div className="bg-[#0d1526] border border-[#1a2235] rounded-[10px] px-4 py-3 flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#5A6380] uppercase tracking-wider">
-                Selected Digit
-              </span>
-              <span className="font-mono font-bold text-white text-lg">{selectedDigit}</span>
+            <div className="bg-[#0d1526] border border-[#1a2235] rounded-[10px] px-4 py-3">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold text-[#5A6380] uppercase tracking-wider">
+                  Selected Digit
+                </span>
+                <span className="font-mono font-bold text-primary text-lg">
+                  {selectedDigit}
+                </span>
+              </div>
+              <div className="grid grid-cols-9 gap-1">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setSelectedDigit(d)}
+                    className={`h-9 rounded-[8px] text-sm font-mono font-bold transition-all active:scale-95 ${
+                      selectedDigit === d
+                        ? 'bg-primary text-white shadow-md shadow-primary/40 ring-2 ring-primary/30'
+                        : 'bg-[#070d1a] border border-[#1a2235] text-[#5a6b8a] hover:border-primary/50 hover:text-white'
+                    }`}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
