@@ -15,8 +15,6 @@ interface TradeStore {
   mode: 'manual' | 'auto'
   autoConfig: AutoConfig
   isAutoRunning: boolean
-
-  // Auto trade session tracking
   autoSessionProfit: number
   autoTradeCount: number
 
@@ -36,7 +34,7 @@ export const useTradeStore = create<TradeStore>((set) => ({
   tradeType: 'even_odd',
   direction: null,
   stake: 10,
-  selectedDigit: 5,
+  selectedDigit: 5, // default digit (1-9 range)
   ticks: 5,
   mode: 'manual',
   autoConfig: {
@@ -51,7 +49,8 @@ export const useTradeStore = create<TradeStore>((set) => ({
   setTradeType: (tradeType) => set({ tradeType, direction: null }),
   setDirection: (direction) => set({ direction }),
   setStake: (stake) => set({ stake: Math.max(0.1, stake) }),
-  setSelectedDigit: (selectedDigit) => set({ selectedDigit }),
+  // Clamp selectedDigit to 1–9 only
+  setSelectedDigit: (d) => set({ selectedDigit: Math.max(1, Math.min(9, d)) }),
   setTicks: (ticks) => set({ ticks: Math.max(1, Math.min(ticks, 10)) }),
   setMode: (mode) => set({ mode }),
   setAutoConfig: (config) => set((state) => ({
@@ -62,17 +61,15 @@ export const useTradeStore = create<TradeStore>((set) => ({
   recordAutoResult: (profitLoss) => set((state) => ({
     autoSessionProfit: state.autoSessionProfit + profitLoss,
     autoTradeCount: state.autoTradeCount + 1,
-    // If on loss with multiplier, bump stake for next trade
     stake: profitLoss < 0
       ? Math.min(state.stake * state.autoConfig.lossMultiplier, 10000)
       : state.stake,
   })),
 
-  resetAutoSession: () => set((state) => ({
+  resetAutoSession: () => set(() => ({
     autoSessionProfit: 0,
     autoTradeCount: 0,
     isAutoRunning: false,
-    // Reset stake back to original after auto session ends
     stake: 10,
   })),
 }))

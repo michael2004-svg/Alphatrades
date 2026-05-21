@@ -7,17 +7,22 @@ export default function DigitBar() {
   const { digitStats, lastDigit } = usePriceStore()
   const { tradeType, selectedDigit, setSelectedDigit } = useTradeStore()
 
-  const hotDigit = Object.entries(digitStats).reduce((max, [d, s]) =>
-    s.percentage > (digitStats[parseInt(max)]?.percentage || 0) ? d : max, '0'
-  )
+  // Only digits 1–9
+  const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+  const hotDigit = DIGITS.reduce<number>((max, d) => {
+    const pct = digitStats[d]?.percentage ?? 0
+    const maxPct = digitStats[max]?.percentage ?? 0
+    return pct > maxPct ? d : max
+  }, 1)
 
   const isClickable = tradeType === 'over_under' || tradeType === 'matches_differs'
 
   return (
     <div className="flex items-start gap-1.5 w-full px-1 py-2">
-      {Array.from({ length: 10 }, (_, d) => {
-        const stat = digitStats[d] || { count: 0, percentage: 10 }
-        const isHot = parseInt(hotDigit) === d
+      {DIGITS.map((d) => {
+        const stat = digitStats[d] || { count: 0, percentage: 11.1 }
+        const isHot = hotDigit === d
         const isCurrent = lastDigit === d
         const isSelected = selectedDigit === d
 

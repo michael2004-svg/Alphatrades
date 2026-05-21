@@ -66,6 +66,7 @@ function settleDemoLocal(
       ? selectedDigit != null && exitDigit > selectedDigit
       : selectedDigit != null && exitDigit < selectedDigit
   }
+  // profitLoss = net profit (payout) on win, or -stake on loss
   return { won, profitLoss: won ? payout : -stake }
 }
 
@@ -83,7 +84,7 @@ export default function TradePage() {
   } = useTradeStore()
   const {
     isDemo, realBalance, demoBalance,
-    updateSessionPL, setDemoBalance,
+    updateSessionPL, addToDemoBalance, addToRealBalance,
   } = useUserStore()
   const {
     addOpenPosition, closePosition,
@@ -118,7 +119,6 @@ export default function TradePage() {
       }
       prevPriceRef.current = price
       addTick(price, digit)
-      // Increment all open positions on every live tick
       openPositionsRef.current.forEach(pos => incrementTick(pos.id))
     })
 
@@ -146,7 +146,7 @@ export default function TradePage() {
         let profitLoss = 0
 
         if (pos.id.startsWith('demo_')) {
-          // Guest demo — pure client-side
+          // ── Guest demo — pure client-side ──
           const r = settleDemoLocal(
             pos.direction, pos.trade_type,
             exitDigit, pos.selected_digit,
@@ -154,13 +154,17 @@ export default function TradePage() {
           )
           won = r.won
           profitLoss = r.profitLoss
+
           if (won) {
-            // Read fresh balance from store to avoid stale closure bug
-            const currentDemoBalance = useUserStore.getState().demoBalance
-            setDemoBalance(currentDemoBalance + pos.stake + pos.payout)
+            // On win: return stake + add profit to balance
+            // stake was already deducted when trade was placed,
+            // so we add back stake + payout (profit portion)
+            addToDemoBalance(pos.stake + pos.payout)
           }
+          // On loss: nothing to do — stake was already deducted on placement
+
         } else {
-          // Authenticated — Supabase settlement
+          // ── Authenticated — Supabase settlement ──
           const r = await settleTrade(
             pos.id, exitPrice, exitDigit,
             pos.user_id || '', pos.is_demo
@@ -168,6 +172,18 @@ export default function TradePage() {
           if (!r) continue
           won = r.won
           profitLoss = r.profitLoss
+
+          if (won) {
+            if (pos.is_demo) {
+              // Authenticated demo win
+              addToDemoBalance(pos.stake + pos.payout)
+            } else {
+              // Real money win — add stake back + profit
+              addToRealBalance(pos.stake + pos.payout)
+            }
+          }
+          // Supabase also updates DB balance via settleTrade RPC —
+          // the next balance fetch will sync the real source of truth
         }
 
         closePosition(pos.id, won ? 'won' : 'lost', {
@@ -177,16 +193,16 @@ export default function TradePage() {
           closed_at: new Date().toISOString(),
         })
         updateSessionPL(profitLoss, won)
-        setTradeResult({ won, amount: profitLoss })
+        // Show net P&L in overlay (positive = profit, negative = loss amount)
+        setTradeResult({ won, amount: won ? profitLoss : -pos.stake })
 
         won
           ? toast.success(`+$${profitLoss.toFixed(2)} Won!`, { icon: '🏆' })
-          : toast.error(`-$${Math.abs(profitLoss).toFixed(2)} Lost`, { icon: '💸' })
+          : toast.error(`-$${pos.stake.toFixed(2)} Lost`, { icon: '💸' })
 
         // Auto mode: record result and check stop conditions
         if (mode === 'auto' && isAutoRunning) {
           recordAutoResult(profitLoss)
-          // Check target profit / stop loss
           const { autoSessionProfit } = useTradeStore.getState()
           if (
             autoSessionProfit >= autoConfig.targetProfit ||
@@ -205,7 +221,7 @@ export default function TradePage() {
     }
 
     settle()
-  }, [ticks.length]) // fires on every new tick — real-time
+  }, [ticks.length])
 
   // ── Place single trade ───────────────────────────────────────────────
   const handleTrade = useCallback(async (dir: string) => {
@@ -229,10 +245,11 @@ export default function TradePage() {
     })
 
     if (result.success && result.positionId) {
-      // Deduct demo balance immediately
+      // Deduct stake from balance immediately on placement
       if (isDemo) {
-        const currentDemoBalance = useUserStore.getState().demoBalance
-        setDemoBalance(Math.max(0, currentDemoBalance - stake))
+        addToDemoBalance(-stake)
+      } else {
+        addToRealBalance(-stake)
       }
 
       addOpenPosition({
@@ -270,11 +287,7 @@ export default function TradePage() {
     if (isAutoRunning) return
     setIsAutoRunning(true)
     toast('🤖 Auto trading started', { duration: 2000 })
-
-    // Place first trade immediately
     handleTrade(dir)
-
-    // Place subsequent trades every N ticks (tradeTicks + 1 buffer)
     const intervalMs = (tradeTicks + 1) * 1000
     autoIntervalRef.current = setInterval(() => {
       const { isAutoRunning: running, autoSessionProfit, autoConfig: cfg } =
@@ -301,7 +314,6 @@ export default function TradePage() {
     toast('Auto trading stopped', { duration: 2000 })
   }, [])
 
-  // Clean up auto on unmount
   useEffect(() => {
     return () => {
       if (autoIntervalRef.current) clearInterval(autoIntervalRef.current)
@@ -334,9 +346,7 @@ export default function TradePage() {
             payoutPct={`${((ep / stake) * 100).toFixed(1)}%`}
             disabled={placingTrade || connectionStatus !== 'connected'}
             onTrade={() => isAuto ? startAutoTrade('even') : handleTrade('even')}
-            isAutoMode={isAuto}
-            isAutoRunning={isAutoRunning}
-            onStopAuto={stopAutoTrade}
+            isAutoMode={isAuto} isAutoRunning={isAutoRunning} onStopAuto={stopAutoTrade}
           />
           <TradeButton
             label="Odd" direction="down"
@@ -344,9 +354,7 @@ export default function TradePage() {
             payoutPct={`${((op / stake) * 100).toFixed(1)}%`}
             disabled={placingTrade || connectionStatus !== 'connected'}
             onTrade={() => isAuto ? startAutoTrade('odd') : handleTrade('odd')}
-            isAutoMode={isAuto}
-            isAutoRunning={isAutoRunning}
-            onStopAuto={stopAutoTrade}
+            isAutoMode={isAuto} isAutoRunning={isAutoRunning} onStopAuto={stopAutoTrade}
           />
         </div>
       )
@@ -363,9 +371,7 @@ export default function TradePage() {
             payoutPct={`${((ovp / stake) * 100).toFixed(1)}%`}
             disabled={placingTrade || connectionStatus !== 'connected'}
             onTrade={() => isAuto ? startAutoTrade('over') : handleTrade('over')}
-            isAutoMode={isAuto}
-            isAutoRunning={isAutoRunning}
-            onStopAuto={stopAutoTrade}
+            isAutoMode={isAuto} isAutoRunning={isAutoRunning} onStopAuto={stopAutoTrade}
           />
           <TradeButton
             label={`Under ${selectedDigit}`} direction="down"
@@ -373,9 +379,7 @@ export default function TradePage() {
             payoutPct={`${((udp / stake) * 100).toFixed(1)}%`}
             disabled={placingTrade || connectionStatus !== 'connected'}
             onTrade={() => isAuto ? startAutoTrade('under') : handleTrade('under')}
-            isAutoMode={isAuto}
-            isAutoRunning={isAutoRunning}
-            onStopAuto={stopAutoTrade}
+            isAutoMode={isAuto} isAutoRunning={isAutoRunning} onStopAuto={stopAutoTrade}
           />
         </div>
       )
@@ -391,9 +395,7 @@ export default function TradePage() {
           payoutPct={`${((mp / stake) * 100).toFixed(1)}%`}
           disabled={placingTrade || connectionStatus !== 'connected'}
           onTrade={() => isAuto ? startAutoTrade(`match_${selectedDigit}`) : handleTrade(`match_${selectedDigit}`)}
-          isAutoMode={isAuto}
-          isAutoRunning={isAutoRunning}
-          onStopAuto={stopAutoTrade}
+          isAutoMode={isAuto} isAutoRunning={isAutoRunning} onStopAuto={stopAutoTrade}
         />
         <TradeButton
           label={`Differs ${selectedDigit}`} direction="down"
@@ -401,9 +403,7 @@ export default function TradePage() {
           payoutPct={`${((dp / stake) * 100).toFixed(1)}%`}
           disabled={placingTrade || connectionStatus !== 'connected'}
           onTrade={() => isAuto ? startAutoTrade(`differ_${selectedDigit}`) : handleTrade(`differ_${selectedDigit}`)}
-          isAutoMode={isAuto}
-          isAutoRunning={isAutoRunning}
-          onStopAuto={stopAutoTrade}
+          isAutoMode={isAuto} isAutoRunning={isAutoRunning} onStopAuto={stopAutoTrade}
         />
       </div>
     )
@@ -416,7 +416,7 @@ export default function TradePage() {
       <div className="flex-1 max-w-screen-xl mx-auto w-full px-3 sm:px-4 py-3
         grid grid-cols-1 lg:grid-cols-[1fr_370px] gap-3">
 
-        {/* ── LEFT: Chart column ───────────────────────────────────── */}
+        {/* ── LEFT: Chart column ── */}
         <div className="flex flex-col gap-3">
 
           {/* Asset selector row */}
@@ -468,7 +468,7 @@ export default function TradePage() {
             <PriceChart height={180} visibleTicks={100} />
           </div>
 
-          {/* Digit distribution */}
+          {/* Digit distribution — 1 to 9 */}
           <div className="bg-[#0d1526] border border-[#1a2235] rounded-[10px] p-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[10px] font-semibold text-[#5A6380] uppercase tracking-wider">
@@ -480,8 +480,7 @@ export default function TradePage() {
             </div>
             <DigitBar />
           </div>
-
-  {/* Open positions (desktop) */}
+   {/* Open positions (desktop) */}
           {openPositions.length > 0 && (
             <div className="bg-[#0d1526] border border-[#1a2235] rounded-[10px] p-4 hidden lg:block">
               <h3 className="text-[10px] font-semibold text-[#5A6380] uppercase tracking-wider mb-3">
@@ -512,7 +511,7 @@ export default function TradePage() {
           )}
         </div>
 
-        {/* ── RIGHT: Trading panel ─────────────────────────────────── */}
+        {/* ── RIGHT: Trading panel ── */}
         <div className="flex flex-col gap-3">
 
           {/* Trade type tabs */}
@@ -557,7 +556,7 @@ export default function TradePage() {
             </div>
           )}
 
-          {/* Selected digit pill (non even_odd) */}
+          {/* Selected digit (1–9 only, clickable from DigitBar) */}
           {tradeType !== 'even_odd' && (
             <div className="bg-[#0d1526] border border-[#1a2235] rounded-[10px] px-4 py-3 flex items-center justify-between">
               <span className="text-xs font-semibold text-[#5A6380] uppercase tracking-wider">

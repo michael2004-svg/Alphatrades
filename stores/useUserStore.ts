@@ -18,6 +18,8 @@ interface UserStore {
   setProfile: (profile: any) => void
   setRealBalance: (balance: number) => void
   setDemoBalance: (balance: number) => void
+  addToRealBalance: (amount: number) => void
+  addToDemoBalance: (amount: number) => void
   setIsDemo: (val: boolean) => void
   toggleDemo: () => void
   updateSessionPL: (amount: number, won: boolean) => void
@@ -28,7 +30,6 @@ export const useUserStore = create<UserStore>((set) => ({
   user: null,
   profile: null,
   realBalance: 0,
-  // Guest demo users start with $10,000
   demoBalance: 10000,
   isDemo: true,
   sessionPL: 0,
@@ -38,6 +39,15 @@ export const useUserStore = create<UserStore>((set) => ({
   setProfile: (profile) => set({ profile }),
   setRealBalance: (realBalance) => set({ realBalance }),
   setDemoBalance: (demoBalance) => set({ demoBalance }),
+
+  // Atomic helpers — safe against stale closures
+  addToRealBalance: (amount) => set((state) => ({
+    realBalance: Math.max(0, state.realBalance + amount),
+  })),
+  addToDemoBalance: (amount) => set((state) => ({
+    demoBalance: Math.max(0, state.demoBalance + amount),
+  })),
+
   setIsDemo: (val) => set({ isDemo: val }),
 
   toggleDemo: () => set((state) => {
