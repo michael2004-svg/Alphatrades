@@ -1,0 +1,1802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Binaryflow Admin Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #04060f;
+      --surface: #070d1a;
+      --card: #0d1526;
+      --border: #1a2235;
+      --border2: #0f1a2e;
+      --text: #ffffff;
+      --muted: #5a6b8a;
+      --muted2: #3a4a6b;
+      --primary: #1A56FF;
+      --primary-dark: #0D3ACC;
+      --green: #00C48C;
+      --red: #FF4757;
+      --yellow: #FFB800;
+      --purple: #8B5CF6;
+      --cyan: #06B6D4;
+    }
+    html, body { height: 100%; font-family: 'DM Sans', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+    a { color: inherit; text-decoration: none; }
+    input, select, textarea, button { font-family: inherit; font-size: inherit; }
+    button { cursor: pointer; border: none; background: none; }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: var(--card); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ── Layout ── */
+    #app { display: flex; height: 100vh; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 220px; min-width: 220px; background: var(--surface);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column;
+      overflow-y: auto; z-index: 10;
+    }
+    .sidebar-logo {
+      padding: 20px 16px 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sidebar-logo .logo-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--primary), #00C48C);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 14px; color: white; flex-shrink: 0;
+    }
+    .sidebar-logo .logo-text { font-weight: 800; font-size: 15px; }
+    .sidebar-logo .logo-badge {
+      font-size: 9px; font-weight: 700; color: var(--yellow);
+      background: rgba(255,184,0,0.12); border: 1px solid rgba(255,184,0,0.25);
+      padding: 2px 6px; border-radius: 4px; margin-left: auto;
+    }
+    .sidebar-section { padding: 8px; }
+    .sidebar-section-label {
+      font-size: 9px; font-weight: 700; color: var(--muted2);
+      text-transform: uppercase; letter-spacing: 1px;
+      padding: 8px 8px 4px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 10px; border-radius: 8px; font-size: 13px;
+      font-weight: 500; color: var(--muted); transition: all 0.15s;
+      cursor: pointer; width: 100%; text-align: left;
+    }
+    .nav-item:hover { background: var(--card); color: var(--text); }
+    .nav-item.active { background: rgba(26,86,255,0.12); color: var(--primary); }
+    .nav-item svg { flex-shrink: 0; }
+    .nav-item .badge {
+      margin-left: auto; background: var(--red); color: white;
+      font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 10px;
+    }
+
+    /* ── Main ── */
+    #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #topbar {
+      height: 56px; background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px; flex-shrink: 0;
+    }
+    .topbar-title { font-weight: 700; font-size: 16px; }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+    .live-badge {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 600; color: var(--green);
+      background: rgba(0,196,140,0.1); border: 1px solid rgba(0,196,140,0.2);
+      padding: 4px 10px; border-radius: 20px;
+    }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .admin-avatar {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--primary), #8B5CF6);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 13px; color: white;
+    }
+
+    #content { flex: 1; overflow-y: auto; padding: 20px; }
+
+    /* ── Pages ── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px;
+    }
+    .card-title {
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;
+    }
+
+    /* ── KPI Grid ── */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .kpi-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px; position: relative; overflow: hidden;
+    }
+    .kpi-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    }
+    .kpi-card.blue::before { background: var(--primary); }
+    .kpi-card.green::before { background: var(--green); }
+    .kpi-card.red::before { background: var(--red); }
+    .kpi-card.yellow::before { background: var(--yellow); }
+    .kpi-card.purple::before { background: var(--purple); }
+    .kpi-card.cyan::before { background: var(--cyan); }
+    .kpi-label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
+    .kpi-value { font-size: 22px; font-weight: 800; margin: 6px 0 4px; font-family: 'JetBrains Mono', monospace; }
+    .kpi-sub { font-size: 11px; color: var(--muted); }
+    .kpi-change { font-size: 11px; font-weight: 600; }
+    .kpi-change.up { color: var(--green); }
+    .kpi-change.down { color: var(--red); }
+
+    /* ── Tables ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead tr { border-bottom: 1px solid var(--border); }
+    th {
+      text-align: left; padding: 10px 12px; font-size: 10px; font-weight: 700;
+      color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px;
+      white-space: nowrap;
+    }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border2); color: var(--text); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: rgba(255,255,255,0.02); }
+    .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 8px; border-radius: 20px; font-size: 10px; font-weight: 700;
+    }
+    .badge.green { background: rgba(0,196,140,0.12); color: var(--green); border: 1px solid rgba(0,196,140,0.2); }
+    .badge.red { background: rgba(255,71,87,0.12); color: var(--red); border: 1px solid rgba(255,71,87,0.2); }
+    .badge.yellow { background: rgba(255,184,0,0.12); color: var(--yellow); border: 1px solid rgba(255,184,0,0.2); }
+    .badge.blue { background: rgba(26,86,255,0.12); color: var(--primary); border: 1px solid rgba(26,86,255,0.2); }
+    .badge.purple { background: rgba(139,92,246,0.12); color: var(--purple); border: 1px solid rgba(139,92,246,0.2); }
+    .badge.gray { background: rgba(90,107,138,0.15); color: var(--muted); border: 1px solid var(--border); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+      transition: all 0.15s; cursor: pointer; border: none;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-green { background: var(--green); color: white; }
+    .btn-green:hover { opacity: 0.85; }
+    .btn-red { background: var(--red); color: white; }
+    .btn-red:hover { opacity: 0.85; }
+    .btn-yellow { background: var(--yellow); color: #000; }
+    .btn-yellow:hover { opacity: 0.85; }
+    .btn-ghost {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+    .btn-sm { padding: 4px 10px; font-size: 11px; border-radius: 6px; }
+    .btn-icon { width: 30px; height: 30px; padding: 0; justify-content: center; border-radius: 6px; }
+
+    /* ── Forms ── */
+    .form-group { margin-bottom: 14px; }
+    .form-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; display: block; }
+    .form-input {
+      width: 100%; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 9px 12px; color: var(--text);
+      transition: border-color 0.15s; outline: none;
+    }
+    .form-input:focus { border-color: var(--primary); }
+    .form-input::placeholder { color: var(--muted2); }
+    select.form-input { cursor: pointer; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(4px); z-index: 100;
+      display: none; align-items: center; justify-content: center; padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; width: 100%; max-width: 480px;
+      max-height: 90vh; overflow-y: auto;
+      animation: slideUp 0.2s ease-out;
+    }
+    @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 20px; border-bottom: 1px solid var(--border);
+    }
+    .modal-title { font-weight: 700; font-size: 15px; }
+    .modal-close { color: var(--muted); font-size: 18px; line-height: 1; padding: 4px; border-radius: 4px; }
+    .modal-close:hover { color: var(--text); background: var(--surface); }
+    .modal-body { padding: 20px; }
+    .modal-footer { padding: 16px 20px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* ── Login ── */
+    #login-screen {
+      position: fixed; inset: 0; background: var(--bg);
+      display: flex; align-items: center; justify-content: center; z-index: 200;
+    }
+    .login-box {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 36px; width: 100%; max-width: 400px;
+    }
+    .login-logo {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 28px;
+    }
+    .login-logo-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: linear-gradient(135deg, var(--primary), #00C48C);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 18px; color: white;
+    }
+    .login-logo-text { font-weight: 800; font-size: 20px; }
+    .login-subtitle { font-size: 12px; color: var(--muted); }
+    .login-error { background: rgba(255,71,87,0.1); border: 1px solid rgba(255,71,87,0.25); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: var(--red); margin-bottom: 14px; display: none; }
+
+    /* ── Chart containers ── */
+    .chart-container { position: relative; height: 200px; }
+    .chart-container.tall { height: 260px; }
+
+    /* ── Search / Filter bar ── */
+    .filter-bar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+    .search-input {
+      flex: 1; min-width: 200px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 12px 8px 36px; color: var(--text); outline: none;
+    }
+    .search-input:focus { border-color: var(--primary); }
+    .search-wrap { position: relative; flex: 1; min-width: 200px; }
+    .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+
+    /* ── Grid layouts ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+    .mb-4 { margin-bottom: 16px; }
+    .mb-6 { margin-bottom: 24px; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 999;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 18px; font-size: 13px;
+      font-weight: 600; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      transform: translateY(80px); opacity: 0; transition: all 0.25s;
+      display: flex; align-items: center; gap: 8px; max-width: 320px;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.success { border-left: 3px solid var(--green); }
+    #toast.error { border-left: 3px solid var(--red); }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 3px; margin-bottom: 16px; }
+    .tab { flex: 1; padding: 7px; border-radius: 7px; font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; cursor: pointer; transition: all 0.15s; }
+    .tab.active { background: var(--primary); color: white; }
+
+    /* ── Trader detail ── */
+    .trader-stat { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border2); }
+    .trader-stat:last-child { border-bottom: none; }
+    .trader-stat-label { font-size: 12px; color: var(--muted); }
+    .trader-stat-value { font-size: 13px; font-weight: 700; font-family: monospace; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      #sidebar { display: none; }
+      #sidebar.open { display: flex; position: fixed; left: 0; top: 0; bottom: 0; z-index: 50; }
+      #mobile-menu-btn { display: flex; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+    @media (min-width: 769px) { #mobile-menu-btn { display: none; } }
+
+    .divider { height: 1px; background: var(--border); margin: 16px 0; }
+    .text-green { color: var(--green); }
+    .text-red { color: var(--red); }
+    .text-yellow { color: var(--yellow); }
+    .text-muted { color: var(--muted); }
+    .text-right { text-align: right; }
+    .flex { display: flex; }
+    .items-center { align-items: center; }
+    .gap-2 { gap: 8px; }
+    .gap-3 { gap: 12px; }
+    .justify-between { justify-content: space-between; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    .loading { color: var(--muted); font-size: 13px; padding: 40px; text-align: center; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- ══ LOGIN SCREEN ══════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-logo-icon">BF</div>
+      <div>
+        <div class="login-logo-text">Binaryflow</div>
+        <div class="login-subtitle">Admin Dashboard</div>
+      </div>
+    </div>
+    <div id="login-error" class="login-error"></div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input type="email" id="login-email" class="form-input" placeholder="admin@binaryflow.co.ke" value="admin@binaryflow.co.ke" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input type="password" id="login-password" class="form-input" placeholder="••••••••" />
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" onclick="doLogin()">
+      Sign In to Admin
+    </button>
+  </div>
+</div>
+
+<!-- ══ APP ══════════════════════════════════════════════════════════════ -->
+<div id="app" style="display:none;">
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">BF</div>
+      <span class="logo-text">Binaryflow</span>
+      <span class="logo-badge">ADMIN</span>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Overview</div>
+      <button class="nav-item active" onclick="showPage('dashboard', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </button>
+      <button class="nav-item" onclick="showPage('analytics', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Analytics
+      </button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Users</div>
+      <button class="nav-item" onclick="showPage('traders', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Traders
+      </button>
+      <button class="nav-item" onclick="showPage('kyc', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        KYC Verification
+      </button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Finance</div>
+      <button class="nav-item" onclick="showPage('deposits', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+        Deposits
+      </button>
+      <button class="nav-item" onclick="showPage('withdrawals', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+        Withdrawals
+        <span class="badge" id="pending-withdrawals-badge" style="display:none">0</span>
+      </button>
+      <button class="nav-item" onclick="showPage('balances', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Balance Manager
+      </button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Trading</div>
+      <button class="nav-item" onclick="showPage('trades', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        Trade History
+      </button>
+      <button class="nav-item" onclick="showPage('risk', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Risk Monitor
+      </button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">System</div>
+      <button class="nav-item" onclick="showPage('referrals', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        Referrals
+      </button>
+      <button class="nav-item" onclick="showPage('settings', this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </button>
+      <button class="nav-item" onclick="doLogout()" style="color:var(--red);">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign Out
+      </button>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div id="main">
+    <!-- Topbar -->
+    <div id="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button id="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <span class="topbar-title" id="page-title">Dashboard</span>
+      </div>
+      <div class="topbar-right">
+        <span style="font-size:11px;color:var(--muted)" id="last-updated"></span>
+        <div class="live-badge"><div class="live-dot"></div>Live</div>
+        <div class="admin-avatar">A</div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div id="content">
+
+      <!-- ══ DASHBOARD PAGE ══ -->
+      <div id="page-dashboard" class="page active">
+        <div class="kpi-grid" id="kpi-grid">
+          <div class="loading"><span class="spinner"></span></div>
+        </div>
+        <div class="grid-2 mb-4">
+          <div class="card">
+            <div class="card-title">Deposits (Last 7 Days)</div>
+            <div class="chart-container"><canvas id="chart-deposits"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Trades (Last 7 Days)</div>
+            <div class="chart-container"><canvas id="chart-trades"></canvas></div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Win vs Loss Rate</div>
+            <div class="chart-container"><canvas id="chart-winloss"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Top Traders Today</div>
+            <div id="top-traders-list" class="loading"><span class="spinner"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ANALYTICS PAGE ══ -->
+      <div id="page-analytics" class="page">
+        <div class="kpi-grid" id="analytics-kpis"></div>
+        <div class="card mb-4">
+          <div class="card-title">Daily Revenue (House Edge) — Last 30 Days</div>
+          <div class="chart-container tall"><canvas id="chart-revenue"></canvas></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">New Users Per Day (Last 14 Days)</div>
+            <div class="chart-container"><canvas id="chart-users"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Trade Types Distribution</div>
+            <div class="chart-container"><canvas id="chart-types"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ TRADERS PAGE ══ -->
+      <div id="page-traders" class="page">
+        <div class="filter-bar">
+          <div class="search-wrap">
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" class="search-input" id="trader-search" placeholder="Search by name, email, phone..." oninput="filterTraders()" />
+          </div>
+          <select class="form-input" id="trader-status-filter" onchange="filterTraders()" style="width:140px;flex:none;">
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="banned">Banned</option>
+          </select>
+          <select class="form-input" id="trader-sort" onchange="filterTraders()" style="width:160px;flex:none;">
+            <option value="created_at">Newest First</option>
+            <option value="balance_desc">Balance (High)</option>
+            <option value="balance_asc">Balance (Low)</option>
+            <option value="trades_desc">Most Trades</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="loadTraders()">
+            <span class="spinner" id="traders-spinner" style="display:none"></span>
+            Refresh
+          </button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Trader</th>
+                  <th>Status</th>
+                  <th>Real Balance</th>
+                  <th>Demo Balance</th>
+                  <th>Trades</th>
+                  <th>Win Rate</th>
+                  <th>Net P&L</th>
+                  <th>Joined</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="traders-tbody">
+                <tr><td colspan="9" class="loading"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ KYC PAGE ══ -->
+      <div id="page-kyc" class="page">
+        <div class="card">
+          <div class="card-title">KYC Verification Queue</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Trader</th>
+                  <th>Phone</th>
+                  <th>Joined</th>
+                  <th>KYC Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="kyc-tbody">
+                <tr><td colspan="5" class="loading"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ DEPOSITS PAGE ══ -->
+      <div id="page-deposits" class="page">
+        <div class="filter-bar">
+          <div class="search-wrap">
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" class="search-input" id="deposit-search" placeholder="Search receipt, email..." oninput="filterDeposits()" />
+          </div>
+          <select class="form-input" id="deposit-status-filter" onchange="filterDeposits()" style="width:140px;flex:none;">
+            <option value="">All Status</option>
+            <option value="completed">Completed</option>
+            <option value="pending">Pending</option>
+            <option value="failed">Failed</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="loadDeposits()">Refresh</button>
+        </div>
+        <div class="kpi-grid" id="deposits-kpis"></div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Trader</th>
+                  <th>Amount USD</th>
+                  <th>Amount KES</th>
+                  <th>Method</th>
+                  <th>Receipt</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="deposits-tbody">
+                <tr><td colspan="8" class="loading"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ WITHDRAWALS PAGE ══ -->
+      <div id="page-withdrawals" class="page">
+        <div class="filter-bar">
+          <div class="search-wrap">
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" class="search-input" id="withdrawal-search" placeholder="Search by destination, email..." oninput="filterWithdrawals()" />
+          </div>
+          <select class="form-input" id="withdrawal-status-filter" onchange="filterWithdrawals()" style="width:140px;flex:none;">
+            <option value="">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="loadWithdrawals()">Refresh</button>
+        </div>
+        <div class="kpi-grid" id="withdrawals-kpis"></div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Trader</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Destination</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="withdrawals-tbody">
+                <tr><td colspan="7" class="loading"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ BALANCE MANAGER PAGE ══ -->
+      <div id="page-balances" class="page">
+        <div class="grid-2 mb-4">
+          <div class="card">
+            <div class="card-title">Adjust Trader Balance</div>
+            <div class="form-group">
+              <label class="form-label">Select Trader</label>
+              <select class="form-input" id="balance-trader-select">
+                <option value="">Loading traders...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Account Type</label>
+              <select class="form-input" id="balance-account-type">
+                <option value="real">Real Balance</option>
+                <option value="demo">Demo Balance</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Operation</label>
+              <select class="form-input" id="balance-operation">
+                <option value="add">Add Funds</option>
+                <option value="subtract">Subtract Funds</option>
+                <option value="set">Set Balance To</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Amount (USD)</label>
+              <input type="number" class="form-input" id="balance-amount" placeholder="0.00" min="0" step="0.01" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Admin Note</label>
+              <input type="text" class="form-input" id="balance-note" placeholder="Reason for adjustment..." />
+            </div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="adjustBalance()">
+              Apply Balance Adjustment
+            </button>
+          </div>
+          <div class="card">
+            <div class="card-title">Balance Overview</div>
+            <div id="balance-overview-list" class="loading"><span class="spinner"></span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Recent Balance Adjustments</div>
+          <div id="balance-log" class="loading"><span class="spinner"></span></div>
+        </div>
+      </div>
+
+      <!-- ══ TRADES PAGE ══ -->
+      <div id="page-trades" class="page">
+        <div class="filter-bar">
+          <div class="search-wrap">
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" class="search-input" id="trades-search" placeholder="Search by trader email..." oninput="filterTrades()" />
+          </div>
+          <select class="form-input" id="trades-status-filter" onchange="filterTrades()" style="width:130px;flex:none;">
+            <option value="">All</option>
+            <option value="won">Won</option>
+            <option value="lost">Lost</option>
+            <option value="open">Open</option>
+          </select>
+          <select class="form-input" id="trades-type-filter" onchange="filterTrades()" style="width:160px;flex:none;">
+            <option value="">All Types</option>
+            <option value="even_odd">Even/Odd</option>
+            <option value="matches_differs">Matches/Differs</option>
+            <option value="over_under">Over/Under</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="loadTrades()">Refresh</button>
+        </div>
+        <div class="kpi-grid" id="trades-kpis"></div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Trader</th>
+                  <th>Asset</th>
+                  <th>Type</th>
+                  <th>Direction</th>
+                  <th>Stake</th>
+                  <th>Payout</th>
+                  <th>P&L</th>
+                  <th>Status</th>
+                  <th>Mode</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody id="trades-tbody">
+                <tr><td colspan="10" class="loading"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ RISK MONITOR PAGE ══ -->
+      <div id="page-risk" class="page">
+        <div class="kpi-grid" id="risk-kpis"></div>
+        <div class="grid-2 mb-4">
+          <div class="card">
+            <div class="card-title">🔴 High Balance Traders (Real &gt; $500)</div>
+            <div id="high-balance-list" class="loading"><span class="spinner"></span></div>
+          </div>
+          <div class="card">
+            <div class="card-title">⚡ High Win Rate Traders (&gt;65%)</div>
+            <div id="high-winrate-list" class="loading"><span class="spinner"></span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">🚨 Recent Large Trades (&gt;$50 stake)</div>
+          <div id="large-trades-list" class="loading"><span class="spinner"></span></div>
+        </div>
+      </div>
+
+      <!-- ══ REFERRALS PAGE ══ -->
+      <div id="page-referrals" class="page">
+        <div class="kpi-grid" id="referrals-kpis"></div>
+        <div class="card">
+          <div class="card-title">Referral Chains</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Referrer</th>
+                  <th>Referee</th>
+                  <th>Referee Balance</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody id="referrals-tbody">
+                <tr><td colspan="4" class="loading"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ SETTINGS PAGE ══ -->
+      <div id="page-settings" class="page">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Platform Settings</div>
+            <div class="form-group">
+              <label class="form-label">Maintenance Mode</label>
+              <select class="form-input" id="setting-maintenance">
+                <option value="off">Off — Platform Running</option>
+                <option value="on">On — Show Maintenance Page</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Min Deposit (USD)</label>
+              <input type="number" class="form-input" id="setting-min-deposit" value="5" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Min Withdrawal (USD)</label>
+              <input type="number" class="form-input" id="setting-min-withdraw" value="10" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Max Stake Per Trade (USD)</label>
+              <input type="number" class="form-input" id="setting-max-stake" value="1000" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">KES Exchange Rate (per 1 USD)</label>
+              <input type="number" class="form-input" id="setting-kes-rate" value="129" />
+            </div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="saveSettings()">Save Settings</button>
+          </div>
+          <div class="card">
+            <div class="card-title">Admin Info</div>
+            <div class="trader-stat">
+              <span class="trader-stat-label">Logged in as</span>
+              <span class="trader-stat-value" id="admin-email-display">—</span>
+            </div>
+            <div class="trader-stat">
+              <span class="trader-stat-label">Supabase Project</span>
+              <span class="trader-stat-value font-mono" style="font-size:10px;">pqosxdaivzfyzzxnuxiy</span>
+            </div>
+            <div class="trader-stat">
+              <span class="trader-stat-label">Dashboard Version</span>
+              <span class="trader-stat-value">v2.0.0</span>
+            </div>
+            <div class="divider"></div>
+            <div class="card-title">Danger Zone</div>
+            <button class="btn btn-red" style="width:100%;justify-content:center;margin-bottom:8px;" onclick="confirmResetDemo()">
+              Reset All Demo Balances to $10,000
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ══ MODALS ══ -->
+
+<!-- Trader Detail Modal -->
+<div class="modal-overlay" id="modal-trader">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-trader-title">Trader Details</span>
+      <button class="modal-close" onclick="closeModal('modal-trader')">✕</button>
+    </div>
+    <div class="modal-body" id="modal-trader-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-trader')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="modal-confirm">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-header">
+      <span class="modal-title" id="confirm-title">Confirm Action</span>
+      <button class="modal-close" onclick="closeModal('modal-confirm')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="confirm-message" style="color:var(--muted);font-size:13px;line-height:1.6;"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-confirm')">Cancel</button>
+      <button class="btn btn-red btn-sm" id="confirm-ok-btn" onclick="">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://pqosxdaivzfyzzxnuxiy.supabase.co'
+const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxb3N4ZGFpdnpmeXp6eG51eGl5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg0MzYzNCwiZXhwIjoyMDkzNDE5NjM0fQ.HEkyoP4lZBA6uqCxFo2QXE-64yJuHErgjac2UTHVMLY'
+const ADMIN_EMAIL = 'admin@binaryflow.co.ke'
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  auth: { persistSession: false }
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════════════════════════
+function fmt(n, dec=2) {
+  if (n == null) return '—'
+  return Number(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })
+}
+function fmtDate(d) {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
+}
+function fmtDateShort(d) {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('en-GB', { day:'2-digit', month:'short' })
+}
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast')
+  t.textContent = (type === 'success' ? '✓ ' : '✕ ') + msg
+  t.className = 'show ' + type
+  setTimeout(() => t.className = '', 3000)
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open') }
+function openModal(id) { document.getElementById(id).classList.add('open') }
+function statusBadge(s) {
+  const map = {
+    active: 'green', suspended: 'yellow', banned: 'red',
+    completed: 'green', pending: 'yellow', failed: 'red',
+    won: 'green', lost: 'red', open: 'blue',
+    approved: 'green', rejected: 'red',
+    true: 'blue', false: 'gray'
+  }
+  return `<span class="badge ${map[s]||'gray'}">${s||'—'}</span>`
+}
+function showConfirm(title, msg, onOk) {
+  document.getElementById('confirm-title').textContent = title
+  document.getElementById('confirm-message').textContent = msg
+  document.getElementById('confirm-ok-btn').onclick = () => { closeModal('modal-confirm'); onOk() }
+  openModal('modal-confirm')
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════════════════════════════════
+let currentUser = null
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim()
+  const pass  = document.getElementById('login-password').value
+  const errEl = document.getElementById('login-error')
+  errEl.style.display = 'none'
+
+  if (!email || !pass) { errEl.textContent = 'Enter email and password'; errEl.style.display = 'block'; return }
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass })
+  if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return }
+
+  // Check admin role
+  const { data: profile } = await sb.from('profiles').select('role,email').eq('id', data.user.id).single()
+  if (!profile || profile.role !== 'admin') {
+    await sb.auth.signOut()
+    errEl.textContent = 'Access denied. Admin role required.'
+    errEl.style.display = 'block'
+    return
+  }
+
+  currentUser = data.user
+  document.getElementById('login-screen').style.display = 'none'
+  document.getElementById('app').style.display = 'flex'
+  document.getElementById('admin-email-display').textContent = email
+  initDashboard()
+}
+
+async function doLogout() {
+  await sb.auth.signOut()
+  location.reload()
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════════════════════════════════
+const PAGE_TITLES = {
+  dashboard: 'Dashboard', analytics: 'Analytics', traders: 'Traders',
+  kyc: 'KYC Verification', deposits: 'Deposits', withdrawals: 'Withdrawals',
+  balances: 'Balance Manager', trades: 'Trade History', risk: 'Risk Monitor',
+  referrals: 'Referrals', settings: 'Settings'
+}
+const PAGE_LOADERS = {
+  dashboard: loadDashboard, analytics: loadAnalytics, traders: loadTraders,
+  kyc: loadKyc, deposits: loadDeposits, withdrawals: loadWithdrawals,
+  balances: loadBalances, trades: loadTrades, risk: loadRisk,
+  referrals: loadReferrals
+}
+
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'))
+  document.getElementById('page-' + id).classList.add('active')
+  if (btn) btn.classList.add('active')
+  document.getElementById('page-title').textContent = PAGE_TITLES[id] || id
+  if (PAGE_LOADERS[id]) PAGE_LOADERS[id]()
+  document.getElementById('sidebar').classList.remove('open')
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════════════════
+function initDashboard() {
+  loadDashboard()
+  setInterval(loadDashboard, 60000) // auto-refresh every 60s
+  document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString()
+  setInterval(() => {
+    document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString()
+  }, 60000)
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════════════════════════════════════
+let charts = {}
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id] } }
+
+async function loadDashboard() {
+  const today = new Date(); today.setHours(0,0,0,0)
+  const todayISO = today.toISOString()
+
+  const [
+    { count: totalUsers },
+    { count: todayUsers },
+    { data: wallets },
+    { data: todayDeposits },
+    { data: allDeposits },
+    { data: todayWithdrawals },
+    { data: allWithdrawals },
+    { data: todayTrades },
+    { data: allTrades },
+    { count: pendingWithdrawals }
+  ] = await Promise.all([
+    sb.from('profiles').select('*', { count:'exact', head:true }),
+    sb.from('profiles').select('*', { count:'exact', head:true }).gte('created_at', todayISO),
+    sb.from('wallets').select('real_balance, demo_balance'),
+    sb.from('deposits').select('amount_usd, method').eq('status','completed').gte('created_at', todayISO),
+    sb.from('deposits').select('amount_usd, method').eq('status','completed'),
+    sb.from('withdrawals').select('amount').eq('status','approved').gte('created_at', todayISO),
+    sb.from('withdrawals').select('amount').eq('status','approved'),
+    sb.from('positions').select('status, stake, payout, profit_loss, is_demo').gte('created_at', todayISO),
+    sb.from('positions').select('status, stake, payout, profit_loss, is_demo'),
+    sb.from('withdrawals').select('*', { count:'exact', head:true }).eq('status','pending')
+  ])
+
+  // Badge
+  const badge = document.getElementById('pending-withdrawals-badge')
+  if (pendingWithdrawals > 0) { badge.textContent = pendingWithdrawals; badge.style.display = 'inline'; }
+  else badge.style.display = 'none'
+
+  const totalReal = (wallets||[]).reduce((s,w) => s + (w.real_balance||0), 0)
+  const totalDeposited = (allDeposits||[]).reduce((s,d) => s + (d.amount_usd||0), 0)
+  const totalWithdrawn = (allWithdrawals||[]).reduce((s,w) => s + (w.amount||0), 0)
+  const todayDepAmt = (todayDeposits||[]).reduce((s,d) => s + (d.amount_usd||0), 0)
+  const todayWdAmt  = (todayWithdrawals||[]).reduce((s,w) => s + (w.amount||0), 0)
+
+  const realTrades = (allTrades||[]).filter(t => !t.is_demo)
+  const wonTrades  = realTrades.filter(t => t.status === 'won')
+  const lostTrades = realTrades.filter(t => t.status === 'lost')
+  const houseEdge  = realTrades.reduce((s,t) => s + (t.is_demo ? 0 : (t.status==='lost' ? t.stake : t.status==='won' ? -(t.payout||0) : 0)), 0)
+
+  const todayReal  = (todayTrades||[]).filter(t => !t.is_demo)
+  const todayWon   = todayReal.filter(t => t.status === 'won').length
+  const todayLost  = todayReal.filter(t => t.status === 'lost').length
+  const todayWinR  = todayReal.length > 0 ? ((todayWon / todayReal.length) * 100).toFixed(1) : '0.0'
+  const winRate    = realTrades.length > 0 ? ((wonTrades.length / realTrades.length) * 100).toFixed(1) : '0.0'
+
+  document.getElementById('kpi-grid').innerHTML = `
+    <div class="kpi-card blue">
+      <div class="kpi-label">Total Users</div>
+      <div class="kpi-value">${(totalUsers||0).toLocaleString()}</div>
+      <div class="kpi-change up">+${todayUsers||0} today</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Real Balances (Total)</div>
+      <div class="kpi-value">$${fmt(totalReal)}</div>
+      <div class="kpi-sub">Across all real accounts</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Deposits Today</div>
+      <div class="kpi-value">$${fmt(todayDepAmt)}</div>
+      <div class="kpi-sub">All time: $${fmt(totalDeposited)}</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-label">Withdrawals Today</div>
+      <div class="kpi-value">$${fmt(todayWdAmt)}</div>
+      <div class="kpi-sub">All time: $${fmt(totalWithdrawn)}</div>
+    </div>
+    <div class="kpi-card yellow">
+      <div class="kpi-label">Trades Today (Real)</div>
+      <div class="kpi-value">${todayReal.length}</div>
+      <div class="kpi-sub">${todayWon}W / ${todayLost}L · ${todayWinR}% win</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">All-time Win Rate (Real)</div>
+      <div class="kpi-value">${winRate}%</div>
+      <div class="kpi-sub">${wonTrades.length}W / ${lostTrades.length}L</div>
+    </div>
+    <div class="kpi-card cyan">
+      <div class="kpi-label">House Edge (Net)</div>
+      <div class="kpi-value ${houseEdge >= 0 ? 'text-green' : 'text-red'}">$${fmt(Math.abs(houseEdge))}</div>
+      <div class="kpi-sub">${houseEdge >= 0 ? '▲ Platform profit' : '▼ Platform loss'}</div>
+    </div>
+    <div class="kpi-card yellow">
+      <div class="kpi-label">Pending Withdrawals</div>
+      <div class="kpi-value">${pendingWithdrawals||0}</div>
+      <div class="kpi-sub">Awaiting approval</div>
+    </div>
+  `
+
+  // Charts
+  await buildDepositChart()
+  await buildTradesChart()
+  buildWinLossChart(wonTrades.length, lostTrades.length)
+  await buildTopTraders()
+}
+
+async function buildDepositChart() {
+  const days = 7
+  const labels = []; const data = []
+  for (let i = days-1; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0)
+    const d2 = new Date(d); d2.setDate(d2.getDate() + 1)
+    labels.push(fmtDateShort(d))
+    const { data: deps } = await sb.from('deposits').select('amount_usd').eq('status','completed').gte('created_at', d.toISOString()).lt('created_at', d2.toISOString())
+    data.push((deps||[]).reduce((s,x) => s + (x.amount_usd||0), 0))
+  }
+  destroyChart('deposits')
+  const ctx = document.getElementById('chart-deposits')
+  if (!ctx) return
+  charts['deposits'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Deposits USD', data, backgroundColor: 'rgba(0,196,140,0.5)', borderColor: '#00C48C', borderWidth: 1, borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#5a6b8a', font:{size:10} }, grid: { color: '#1a2235' } }, y: { ticks: { color: '#5a6b8a', font:{size:10} }, grid: { color: '#1a2235' } } } }
+  })
+}
+
+async function buildTradesChart() {
+  const days = 7; const labels = []; const won = []; const lost = []
+  for (let i = days-1; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0)
+    const d2 = new Date(d); d2.setDate(d2.getDate() + 1)
+    labels.push(fmtDateShort(d))
+    const { data: trades } = await sb.from('positions').select('status').eq('is_demo', false).gte('created_at', d.toISOString()).lt('created_at', d2.toISOString())
+    won.push((trades||[]).filter(t => t.status === 'won').length)
+    lost.push((trades||[]).filter(t => t.status === 'lost').length)
+  }
+  destroyChart('trades')
+  const ctx = document.getElementById('chart-trades')
+  if (!ctx) return
+  charts['trades'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Won', data: won, backgroundColor: 'rgba(0,196,140,0.5)', borderColor: '#00C48C', borderWidth: 1, borderRadius: 4 },
+      { label: 'Lost', data: lost, backgroundColor: 'rgba(255,71,87,0.5)', borderColor: '#FF4757', borderWidth: 1, borderRadius: 4 }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#5a6b8a', font:{size:10} } } }, scales: { x: { stacked: true, ticks: { color: '#5a6b8a', font:{size:10} }, grid: { color: '#1a2235' } }, y: { stacked: true, ticks: { color: '#5a6b8a', font:{size:10} }, grid: { color: '#1a2235' } } } }
+  })
+}
+
+function buildWinLossChart(won, lost) {
+  destroyChart('winloss')
+  const ctx = document.getElementById('chart-winloss')
+  if (!ctx) return
+  charts['winloss'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels: ['Won', 'Lost', 'Open/Other'], datasets: [{ data: [won, lost, Math.max(0, 100 - won - lost)], backgroundColor: ['#00C48C', '#FF4757', '#1a2235'], borderColor: '#0d1526', borderWidth: 2 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#5a6b8a', font:{size:11} } } } }
+  })
+}
+
+async function buildTopTraders() {
+  const { data: wallets } = await sb.from('wallets').select('user_id, real_balance').order('real_balance', { ascending: false }).limit(5)
+  const el = document.getElementById('top-traders-list')
+  if (!wallets || wallets.length === 0) { el.innerHTML = '<div class="loading">No data</div>'; return }
+  const uids = wallets.map(w => w.user_id)
+  const { data: profiles } = await sb.from('profiles').select('id, email, full_name').in('id', uids)
+  const pmap = {}; (profiles||[]).forEach(p => pmap[p.id] = p)
+  el.innerHTML = wallets.map((w, i) => {
+    const p = pmap[w.user_id] || {}
+    return `<div class="trader-stat">
+      <span class="trader-stat-label">#${i+1} ${p.full_name || p.email || w.user_id.slice(0,8)}</span>
+      <span class="trader-stat-value text-green">$${fmt(w.real_balance)}</span>
+    </div>`
+  }).join('')
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  ANALYTICS
+// ══════════════════════════════════════════════════════════════════════════
+async function loadAnalytics() {
+  // Revenue chart (30 days)
+  const labels = []; const revenues = []
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0)
+    const d2 = new Date(d); d2.setDate(d2.getDate() + 1)
+    labels.push(fmtDateShort(d))
+    const { data: trades } = await sb.from('positions').select('status, stake, payout').eq('is_demo', false).gte('created_at', d.toISOString()).lt('created_at', d2.toISOString())
+    const rev = (trades||[]).reduce((s,t) => s + (t.status==='lost' ? t.stake : t.status==='won' ? -(t.payout||0) : 0), 0)
+    revenues.push(parseFloat(rev.toFixed(2)))
+  }
+  destroyChart('revenue')
+  const ctx = document.getElementById('chart-revenue')
+  if (ctx) {
+    charts['revenue'] = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets: [{ label: 'House Revenue (USD)', data: revenues, borderColor: '#1A56FF', backgroundColor: 'rgba(26,86,255,0.1)', fill: true, tension: 0.3, pointRadius: 2, pointHoverRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#5a6b8a' } } }, scales: { x: { ticks: { color: '#5a6b8a', font:{size:10}, maxTicksLimit: 10 }, grid: { color: '#1a2235' } }, y: { ticks: { color: '#5a6b8a', font:{size:10} }, grid: { color: '#1a2235' } } } }
+    })
+  }
+
+  // New users (14 days)
+  const ulabels = []; const udata = []
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0)
+    const d2 = new Date(d); d2.setDate(d2.getDate() + 1)
+    ulabels.push(fmtDateShort(d))
+    const { count } = await sb.from('profiles').select('*', { count:'exact', head:true }).gte('created_at', d.toISOString()).lt('created_at', d2.toISOString())
+    udata.push(count||0)
+  }
+  destroyChart('users')
+  const uctx = document.getElementById('chart-users')
+  if (uctx) {
+    charts['users'] = new Chart(uctx, {
+      type: 'bar',
+      data: { labels: ulabels, datasets: [{ label: 'New Users', data: udata, backgroundColor: 'rgba(139,92,246,0.5)', borderColor: '#8B5CF6', borderWidth: 1, borderRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#5a6b8a', font:{size:10} }, grid: { color: '#1a2235' } }, y: { ticks: { color: '#5a6b8a', font:{size:10} }, grid: { color: '#1a2235' } } } }
+    })
+  }
+
+  // Trade types
+  const { data: allTrades } = await sb.from('positions').select('trade_type').eq('is_demo', false)
+  const types = {}; (allTrades||[]).forEach(t => { types[t.trade_type] = (types[t.trade_type]||0) + 1 })
+  destroyChart('types')
+  const tctx = document.getElementById('chart-types')
+  if (tctx) {
+    charts['types'] = new Chart(tctx, {
+      type: 'pie',
+      data: { labels: Object.keys(types), datasets: [{ data: Object.values(types), backgroundColor: ['#1A56FF','#00C48C','#FFB800'], borderColor: '#0d1526', borderWidth: 2 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#5a6b8a' } } } }
+    })
+  }
+
+  // Analytics KPIs
+  const { data: allDeps } = await sb.from('deposits').select('amount_usd').eq('status','completed')
+  const { data: allWds }  = await sb.from('withdrawals').select('amount').eq('status','approved')
+  const { count: totalTrades } = await sb.from('positions').select('*', { count:'exact', head:true }).eq('is_demo', false)
+  const { count: totalUsers } = await sb.from('profiles').select('*', { count:'exact', head:true })
+  const totalDep = (allDeps||[]).reduce((s,d) => s + (d.amount_usd||0), 0)
+  const totalWd  = (allWds||[]).reduce((s,w) => s + (w.amount||0), 0)
+  document.getElementById('analytics-kpis').innerHTML = `
+    <div class="kpi-card green"><div class="kpi-label">Total Deposited</div><div class="kpi-value">$${fmt(totalDep)}</div></div>
+    <div class="kpi-card red"><div class="kpi-label">Total Withdrawn</div><div class="kpi-value">$${fmt(totalWd)}</div></div>
+    <div class="kpi-card blue"><div class="kpi-label">Net Platform Cash</div><div class="kpi-value ${totalDep-totalWd>=0?'text-green':'text-red'}">$${fmt(totalDep - totalWd)}</div></div>
+    <div class="kpi-card purple"><div class="kpi-label">Total Real Trades</div><div class="kpi-value">${(totalTrades||0).toLocaleString()}</div></div>
+    <div class="kpi-card cyan"><div class="kpi-label">Avg Deposit Size</div><div class="kpi-value">$${fmt(allDeps&&allDeps.length ? totalDep/allDeps.length : 0)}</div></div>
+    <div class="kpi-card yellow"><div class="kpi-label">Deposits / User</div><div class="kpi-value">${totalUsers ? (((allDeps||[]).length / totalUsers) * 100).toFixed(1) : 0}%</div><div class="kpi-sub">Users who deposited</div></div>
+  `
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  TRADERS
+// ══════════════════════════════════════════════════════════════════════════
+let allTraders = []
+
+async function loadTraders() {
+  document.getElementById('traders-spinner').style.display = 'inline-block'
+  const { data: profiles } = await sb.from('profiles').select('*').order('created_at', { ascending: false })
+  const { data: wallets  } = await sb.from('wallets').select('*')
+  const { data: positions } = await sb.from('positions').select('user_id, status, stake, payout, profit_loss, is_demo').eq('is_demo', false)
+
+  const wMap = {}; (wallets||[]).forEach(w => wMap[w.user_id] = w)
+  const tradeMap = {}
+  ;(positions||[]).forEach(p => {
+    if (!tradeMap[p.user_id]) tradeMap[p.user_id] = { total:0, won:0, lost:0, stake:0, pl:0 }
+    tradeMap[p.user_id].total++
+    if (p.status === 'won') tradeMap[p.user_id].won++
+    if (p.status === 'lost') tradeMap[p.user_id].lost++
+    tradeMap[p.user_id].stake += (p.stake||0)
+    tradeMap[p.user_id].pl += (p.profit_loss||0)
+  })
+
+  allTraders = (profiles||[]).map(p => ({
+    ...p,
+    wallet: wMap[p.id] || { real_balance:0, demo_balance:10000 },
+    trades: tradeMap[p.id] || { total:0, won:0, lost:0, stake:0, pl:0 }
+  }))
+
+  // Populate balance manager select
+  const sel = document.getElementById('balance-trader-select')
+  if (sel) {
+    sel.innerHTML = '<option value="">Select trader...</option>' +
+      allTraders.map(t => `<option value="${t.id}">${t.full_name||t.email} (${t.email})</option>`).join('')
+  }
+
+  document.getElementById('traders-spinner').style.display = 'none'
+  renderTraders()
+}
+
+function renderTraders() {
+  const search = document.getElementById('trader-search')?.value.toLowerCase() || ''
+  const statusF = document.getElementById('trader-status-filter')?.value || ''
+  const sortF   = document.getElementById('trader-sort')?.value || 'created_at'
+
+  let filtered = allTraders.filter(t => {
+    const matchSearch = !search || (t.email||'').includes(search) || (t.full_name||'').toLowerCase().includes(search) || (t.phone_number||'').includes(search)
+    const matchStatus = !statusF || (t.status||'active') === statusF
+    return matchSearch && matchStatus
+  })
+
+  if (sortF === 'balance_desc') filtered.sort((a,b) => (b.wallet.real_balance||0) - (a.wallet.real_balance||0))
+  else if (sortF === 'balance_asc') filtered.sort((a,b) => (a.wallet.real_balance||0) - (b.wallet.real_balance||0))
+  else if (sortF === 'trades_desc') filtered.sort((a,b) => b.trades.total - a.trades.total)
+  else filtered.sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
+
+  const tbody = document.getElementById('traders-tbody')
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="9" class="loading">No traders found</td></tr>'; return }
+
+  tbody.innerHTML = filtered.map(t => {
+    const wr = t.trades.total > 0 ? ((t.trades.won / t.trades.total) * 100).toFixed(1) : '0.0'
+    const status = t.status || 'active'
+    return `<tr>
+      <td>
+        <div style="font-weight:600">${t.full_name || '—'}</div>
+        <div style="font-size:11px;color:var(--muted)">${t.email}</div>
+      </td>
+      <td>${statusBadge(status)}</td>
+      <td class="mono text-green">$${fmt(t.wallet.real_balance)}</td>
+      <td class="mono" style="color:var(--muted)">$${fmt(t.wallet.demo_balance)}</td>
+      <td class="mono">${t.trades.total}</td>
+      <td class="mono ${parseFloat(wr) >= 50 ? 'text-green' : 'text-red'}">${wr}%</td>
+      <td class="mono ${t.trades.pl >= 0 ? 'text-green' : 'text-red'}">${t.trades.pl >= 0 ? '+' : ''}$${fmt(t.trades.pl)}</td>
+      <td style="font-size:11px;color:var(--muted)">${fmtDateShort(t.created_at)}</td>
+      <td>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm btn-icon" title="View Details" onclick='openTraderDetail(${JSON.stringify(t.id)})'><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          ${status === 'active' ? `<button class="btn btn-yellow btn-sm" onclick="setTraderStatus('${t.id}','suspended','${t.email}')">Suspend</button>` : ''}
+          ${status !== 'banned' ? `<button class="btn btn-red btn-sm" onclick="setTraderStatus('${t.id}','banned','${t.email}')">Ban</button>` : ''}
+          ${status !== 'active' ? `<button class="btn btn-green btn-sm" onclick="setTraderStatus('${t.id}','active','${t.email}')">Activate</button>` : ''}
+        </div>
+      </td>
+    </tr>`
+  }).join('')
+}
+
+function filterTraders() { renderTraders() }
+
+async function openTraderDetail(uid) {
+  const t = allTraders.find(x => x.id === uid)
+  if (!t) return
+  const { data: trades } = await sb.from('positions').select('*').eq('user_id', uid).eq('is_demo', false).order('created_at', { ascending: false }).limit(20)
+  const { data: deps }   = await sb.from('deposits').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(10)
+  const wr = t.trades.total > 0 ? ((t.trades.won / t.trades.total) * 100).toFixed(1) : '0.0'
+
+  document.getElementById('modal-trader-title').textContent = t.full_name || t.email
+  document.getElementById('modal-trader-body').innerHTML = `
+    <div class="grid-2" style="margin-bottom:16px;">
+      <div>
+        <div class="trader-stat"><span class="trader-stat-label">Email</span><span class="trader-stat-value" style="font-size:11px;">${t.email}</span></div>
+        <div class="trader-stat"><span class="trader-stat-label">Phone</span><span class="trader-stat-value">${t.phone_number||'—'}</span></div>
+        <div class="trader-stat"><span class="trader-stat-label">KYC</span><span class="trader-stat-value">${statusBadge(t.kyc_verified ? 'completed' : 'pending')}</span></div>
+        <div class="trader-stat"><span class="trader-stat-label">Status</span><span class="trader-stat-value">${statusBadge(t.status||'active')}</span></div>
+        <div class="trader-stat"><span class="trader-stat-label">Joined</span><span class="trader-stat-value">${fmtDate(t.created_at)}</span></div>
+        <div class="trader-stat"><span class="trader-stat-label">Referral Code</span><span class="trader-stat-value">${t.referral_code||'—'}</span></div>
+      </div>
+      <div>
+        <div class="trader-stat"><span class="trader-stat-label">Real Balance</span><span class="trader-stat-value text-green">$${fmt(t.wallet.real_balance)}</span></div>
+        <div class="trader-stat"><span class="trader-stat-label">Demo Balance</span><span class="trader-stat-value">$${fmt(t.wallet.demo_balance)}</span></div>
+        <div class="trader-stat"><span class="trader-stat-label">Total Trades</span><span class="trader-stat-value">${t.trades.total}</span></div>
+        <div class="trader-stat"><span class="trader-stat-label">Win Rate</span><span class="trader-stat-value ${parseFloat(wr)>=50?'text-green':'text-red'}">${wr}%</span></div>
+        <div class="trader-stat"><span class="trader-stat-label">Total Staked</span><span class="trader-stat-value">$${fmt(t.trades.stake)}</span></div>
+        <div class="trader-stat"><span class="trader-stat-label">Net P&L</span><span class="trader-stat-value ${t.trades.pl>=0?'text-green':'text-red'}">${t.trades.pl>=0?'+':''}$${fmt(t.trades.pl)}</span></div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="card-title">Recent Deposits</div>
+    <div class="table-wrap" style="margin-bottom:16px;">
+      <table><thead><tr><th>Amount</th><th>Method</th><th>Status</th><th>Date</th></tr></thead>
+      <tbody>${(deps||[]).map(d => `<tr><td class="mono">$${fmt(d.amount_usd)}</td><td>${d.method}</td><td>${statusBadge(d.status)}</td><td style="font-size:11px">${fmtDateShort(d.created_at)}</td></tr>`).join('') || '<tr><td colspan="4" class="loading">No deposits</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div class="card-title">Recent Real Trades</div>
+    <div class="table-wrap">
+      <table><thead><tr><th>Type</th><th>Dir</th><th>Stake</th><th>P&L</th><th>Status</th><th>Date</th></tr></thead>
+      <tbody>${(trades||[]).map(t => `<tr><td>${t.trade_type}</td><td>${t.direction}</td><td class="mono">$${fmt(t.stake)}</td><td class="mono ${(t.profit_loss||0)>=0?'text-green':'text-red'}">${(t.profit_loss||0)>=0?'+':''}$${fmt(t.profit_loss||0)}</td><td>${statusBadge(t.status)}</td><td style="font-size:11px">${fmtDateShort(t.created_at)}</td></tr>`).join('') || '<tr><td colspan="6" class="loading">No trades</td></tr>'}</tbody>
+      </table>
+    </div>
+  `
+  openModal('modal-trader')
+}
+
+async function setTraderStatus(uid, status, email) {
+  const labels = { suspended: 'Suspend', banned: 'Ban', active: 'Activate' }
+  showConfirm(
+    `${labels[status]} Trader`,
+    `Are you sure you want to ${labels[status].toLowerCase()} ${email}? This action will take effect immediately.`,
+    async () => {
+      const { error } = await sb.from('profiles').update({ status }).eq('id', uid)
+      if (error) { showToast('Error: ' + error.message, 'error'); return }
+      showToast(`Trader ${labels[status].toLowerCase()}d successfully`)
+      loadTraders()
+    }
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  KYC
+// ══════════════════════════════════════════════════════════════════════════
+async function loadKyc() {
+  const { data } = await sb.from('profiles').select('*').order('created_at', { ascending: false })
+  const tbody = document.getElementById('kyc-tbody')
+  if (!data || !data.length) { tbody.innerHTML = '<tr><td colspan="5" class="loading">No users</td></tr>'; return }
+  tbody.innerHTML = data.map(p => `<tr>
+    <td><div style="font-weight:600">${p.full_name||'—'}</div><div style="font-size:11px;color:var(--muted)">${p.email}</div></td>
+    <td>${p.phone_number||'—'}</td>
+    <td style="font-size:11px;color:var(--muted)">${fmtDateShort(p.created_at)}</td>
+    <td>${p.kyc_verified ? statusBadge('completed') : statusBadge('pending')}</td>
+    <td>
+      ${!p.kyc_verified ? `<button class="btn btn-green btn-sm" onclick="setKyc('${p.id}', true, '${p.email}')">Approve KYC</button>` : ''}
+      ${p.kyc_verified ? `<button class="btn btn-red btn-sm" onclick="setKyc('${p.id}', false, '${p.email}')">Revoke KYC</button>` : ''}
+    </td>
+  </tr>`).join('')
+}
+
+async function setKyc(uid, val, email) {
+  const { error } = await sb.from('profiles').update({ kyc_verified: val }).eq('id', uid)
+  if (error) { showToast('Error: ' + error.message, 'error'); return }
+  showToast(`KYC ${val ? 'approved' : 'revoked'} for ${email}`)
+  loadKyc()
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  DEPOSITS
+// ══════════════════════════════════════════════════════════════════════════
+let allDepositsData = []
+
+async function loadDeposits() {
+  const { data: deps } = await sb.from('deposits').select('*').order('created_at', { ascending: false }).limit(500)
+  const uids = [...new Set((deps||[]).map(d => d.user_id).filter(Boolean))]
+  const { data: profiles } = uids.length ? await sb.from('profiles').select('id, email, full_name').in('id', uids) : { data: [] }
+  const pmap = {}; (profiles||[]).forEach(p => pmap[p.id] = p)
+  allDepositsData = (deps||[]).map(d => ({ ...d, profile: pmap[d.user_id]||{} }))
+
+  const today = new Date(); today.setHours(0,0,0,0)
+  const todayDeps = allDepositsData.filter(d => d.status === 'completed' && new Date(d.created_at) >= today)
+  const todayAmt  = todayDeps.reduce((s,d) => s + (d.amount_usd||0), 0)
+  const totalAmt  = allDepositsData.filter(d=>d.status==='completed').reduce((s,d) => s + (d.amount_usd||0), 0)
+  const pending   = allDepositsData.filter(d => d.status === 'pending').length
+
+  document.getElementById('deposits-kpis').innerHTML = `
+    <div class="kpi-card green"><div class="kpi-label">Today's Deposits</div><div class="kpi-value">$${fmt(todayAmt)}</div><div class="kpi-sub">${todayDeps.length} transactions</div></div>
+    <div class="kpi-card blue"><div class="kpi-label">All-time Deposits</div><div class="kpi-value">$${fmt(totalAmt)}</div></div>
+    <div class="kpi-card yellow"><div class="kpi-label">Pending</div><div class="kpi-value">${pending}</div><div class="kpi-sub">Awaiting confirmation</div></div>
+    <div class="kpi-card cyan"><div class="kpi-label">Total Transactions</div><div class="kpi-value">${allDepositsData.length}</div></div>
+  `
+  renderDeposits()
+}
+
+function renderDeposits() {
+  const search  = document.getElementById('deposit-search')?.value.toLowerCase() || ''
+  const statusF = document.getElementById('deposit-status-filter')?.value || ''
+  const filtered = allDepositsData.filter(d => {
+    const ms = !search || (d.profile.email||'').includes(search) || (d.mpesa_receipt||'').toLowerCase().includes(search)
+    const mst = !statusF || d.status === statusF
+    return ms && mst
+  })
+  const tbody = document.getElementById('deposits-tbody')
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="8" class="loading">No deposits found</td></tr>'; return }
+  tbody.innerHTML = filtered.map(d => `<tr>
+    <td><div style="font-weight:600">${d.profile.full_name||'—'}</div><div style="font-size:11px;color:var(--muted)">${d.profile.email||d.user_id?.slice(0,8)}</div></td>
+    <td class="mono text-green">$${fmt(d.amount_usd)}</td>
+    <td class="mono">KES ${fmt(d.amount_kes, 0)}</td>
+    <td>${d.method||'mpesa'}</td>
+    <td style="font-size:11px;color:var(--muted)">${d.mpesa_receipt||'—'}</td>
+    <td>${statusBadge(d.status)}</td>
+    <td style="font-size:11px;color:var(--muted)">${fmtDate(d.created_at)}</td>
+    <td>
+      ${d.status === 'pending' ? `<button class="btn btn-green btn-sm" onclick="updateDepositStatus('${d.id}','completed')">Approve</button>` : ''}
+      ${d.status === 'pending' ? `<button class="btn btn-red btn-sm" onclick="updateDepositStatus('${d.id}','failed')">Reject</button>` : ''}
+    </td>
+  </tr>`).join('')
+}
+
+function filterDeposits() { renderDeposits() }
+
+async function updateDepositStatus(id, status) {
+  const { error } = await sb.from('deposits').update({ status }).eq('id', id)
+  if (error) { showToast('Error: ' + error.message, 'error'); return }
+  showToast(`Deposit ${status}`)
+  loadDeposits()
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  WITHDRAWALS
+// ══════════════════════════════════════════════════════════════════════════
+let allWithdrawalsData = []
+
+async function loadWithdrawals() {
+  const { data: wds } = await sb.from('withdrawals').select('*').order('created_at', { ascending: false }).limit(500)
+  const uids = [...new Set((wds||[]).map(w => w.user_id).filter(Boolean))]
+  const { data: profiles } = uids.length ? await sb.from('profiles').select('id, email, full_name').in('id', uids) : { data: [] }
+  const pmap = {}; (profiles||[]).forEach(p => pmap[p.id] = p)
+  allWithdrawalsData = (wds||[]).map(w => ({ ...w, profile: pmap[w.user_id]||{} }))
+
+  const today = new Date(); today.setHours(0,0,0,0)
+  const todayWds  = allWithdrawalsData.filter(w => w.status === 'approved' && new Date(w.created_at) >= today)
+  const todayAmt  = todayWds.reduce((s,w) => s + (w.amount||0), 0)
+  const totalAmt  = allWithdrawalsData.filter(w=>w.status==='approved').reduce((s,w) => s + (w.amount||0), 0)
+  const pending   = allWithdrawalsData.filter(w => w.status === 'pending').length
+
+  const badge = document.getElementById('pending-withdrawals-badge')
+  if (pending > 0) { badge.textContent = pending; badge.style.display = 'inline'; }
+  else badge.style.display = 'none'
+
+  document.getElementById('withdrawals-kpis').innerHTML = `
+    <div class="kpi-card red"><div class="kpi-label">Today's Withdrawals</div><div class="kpi-value">$${fmt(todayAmt)}</div><div class="kpi-sub">${todayWds.length} transactions</div></div>
+    <div class="kpi-card blue"><div class="kpi-label">All-time Withdrawn</div><div class="kpi-value">$${fmt(totalAmt)}</div></div>
+    <div class="kpi-card yellow"><div class="kpi-label">Pending Approval</div><div class="kpi-value">${pending}</div></div>
+    <div class="kpi-card cyan"><div class="kpi-label">Total Requests</div><div class="kpi-value">${allWithdrawalsData.length}</div></div>
+  `
+  renderWithdrawals()
+}
+
+function renderWithdrawals() {
+  const search  = document.getElementById('withdrawal-search')?.value.toLowerCase() || ''
+  const statusF = document.getElementById('withdrawal-status-filter')?.value || ''
+  const filtered = allWithdrawalsData.filter(w => {
+    const ms  = !search || (w.profile.email||'').includes(search) || (w.destination||'').toLowerCase().includes(search)
+    const mst = !statusF || w.status === statusF
+    return ms && mst
+  })
+  const tbody = document.getElementById('withdrawals-tbody')
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="7" class="loading">No withdrawals found</td></tr>'; return }
+  tbody.innerHTML = filtered.map(w => `<tr>
+    <td><div style="font-weight:600">${w.profile.full_name||'—'}</div><div style="font-size:11px;color:var(--muted)">${w.profile.email||w.user_id?.slice(0,8)}</div></td>
+    <td class="mono text-red">$${fmt(w.amount)}</td>
+    <td>${w.method}</td>
+    <td style="font-size:11px;color:var(--muted)">${w.destination}</td>
+    <td>${statusBadge(w.status)}</td>
+    <td style="font-size:11px;color:var(--muted)">${fmtDate(w.created_at)}</td>
+    <td>
+      ${w.status === 'pending' ? `<button class="btn btn-green btn-sm" onclick="updateWithdrawalStatus('${w.id}','approved','${w.user_id}',${w.amount})">Approve</button>` : ''}
+      ${w.status === 'pending' ? `<button class="btn btn-red btn-sm" onclick="updateWithdrawalStatus('${w.id}','rejected','${w.user_id}',${w.amount})">Reject</button>` : ''}
+    </td>
+  </tr>`).join('')
+}
+
+function filterWithdrawals() { renderWithdrawals() }
+
+async function updateWithdrawalStatus(id, status, userId, amount) {
+  const action = status === 'approved' ? 'approve' : 'reject'
+  showConfirm(
+    `${action.charAt(0).toUpperCase()+action.slice(1)} Withdrawal`,
+    `${action === 'approve' ? `Approve $${fmt(amount)} withdrawal? This will deduct from the trader's balance.` : `Reject this withdrawal request? The trader will be notified.`}`,
+    async () => {
+      const updates = { status, processed_at: new Date().toISOString() }
+      const { error } = await sb.from('withdrawals').update(updates).eq('id', id)
+      if (error) { showToast('Error: ' + error.message, 'error'); return }
+
+      // If approving, deduct from real balance
+      if (status === 'approved') {
+        const { data: wallet } = await sb.from('wallets').select('real_balance').eq('user_id', userId).single()
+        if (wallet) {
+          await sb.from('wallets').update({ real_balance: Math.max(0, (wallet.real_balance||0) - amount), updated_at: new Date().toISOString() }).eq('user_id', userId)
+        }
+      }
+      showToast(`Withdrawal ${status}`)
+      loadWithdrawals()
+    }
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  BALANCE MANAGER
+// ══════════════════════════════════════════════════════════════════════════
+async function loadBalances() {
+  if (!allTraders.length) await loadTraders()
+  // Balance overview top 10
+  const top = [...allTraders].sort((a,b) => (b.wallet.real_balance||0) - (a.wallet.real_balance||0)).slice(0, 10)
+  const el = document.getElementById('balance-overview-list')
+  el.innerHTML = top.map(t => `
+    <div class="trader-stat">
+      <span class="trader-stat-label">${t.full_name||t.email}</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span style="font-size:11px;color:var(--muted)">Demo: $${fmt(t.wallet.demo_balance,0)}</span>
+        <span class="trader-stat-value text-green">$${fmt(t.wallet.real_balance)}</span>
+      </div>
+    </div>
+  `).join('')
+
+  document.getElementById('balance-log').innerHTML = '<div style="font-size:12px;color:var(--muted);padding:16px;">Adjustment log coming soon — store in a custom admin_logs table.</div>'
+}
+
+async function adjustBalance() {
+  const uid    = document.getElementById('balance-trader-select').value
+  const type   = document.getElementById('balance-account-type').value
+  const op     = document.getElementById('balance-operation').value
+  const amount = parseFloat(document.getElementById('balance-amount').value)
+  const note   = document.getElementById('balance-note').value
+
+  if (!uid) { showToast('Select a trader', 'error'); return }
+  if (isNaN(amount) || amount <= 0) { showToast('Enter a valid amount', 'error'); return }
+
+  const { data: wallet, error: we } = await sb.from('wallets').select('real_balance, demo_balance').eq('user_id', uid).single()
+  if (we || !wallet) { showToast('Could not find trader wallet', 'error'); return }
+
+  const field = type === 'real' ? 'real_balance' : 'demo_balance'
+  const cur   = wallet[field] || 0
+  let newBal  = cur
+  if (op === 'add') newBal = cur + amount
+  else if (op === 'subtract') newBal = Math.max(0, cur - amount)
+  else if (op === 'set') newBal = amount
+
+  const trader = allTraders.find(t => t.id === uid)
+  showConfirm(
+    'Confirm Balance Adjustment',
+    `${op.toUpperCase()} $${fmt(amount)} on ${trader?.email || uid}'s ${type} account.\nCurrent: $${fmt(cur)} → New: $${fmt(newBal)}\nReason: ${note||'No note'}`,
+    async () => {
+      const { error } = await sb.from('wallets').update({ [field]: newBal, updated_at: new Date().toISOString() }).eq('user_id', uid)
+      if (error) { showToast('Error: ' + error.message, 'error'); return }
+      showToast(`Balance updated: $${fmt(cur)} → $${fmt(newBal)}`)
+      document.getElementById('balance-amount').value = ''
+      document.getElementById('balance-note').value = ''
+      await loadTraders()
+      loadBalances()
+    }
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  TRADES
+// ══════════════════════════════════════════════════════════════════════════
+let allTradesData = []
+
+async function loadTrades() {
+  const { data: trades } = await sb.from('positions').select('*').order('created_at', { ascending: false }).limit(500)
+  const uids = [...new Set((trades||[]).map(t => t.user_id).filter(Boolean))]
+  const { data: profiles } = uids.length ? await sb.from('profiles').select('id, email, full_name').in('id', uids) : { data: [] }
+  const pmap = {}; (profiles||[]).forEach(p => pmap[p.id] = p)
+  allTradesData = (trades||[]).map(t => ({ ...t, profile: pmap[t.user_id]||{} }))
+
+  const realTrades = allTradesData.filter(t => !t.is_demo)
+  const won  = realTrades.filter(t => t.status === 'won')
+  const lost = realTrades.filter(t => t.status === 'lost')
+  const totalStaked = realTrades.reduce((s,t) => s + (t.stake||0), 0)
+  const houseEdge = realTrades.reduce((s,t) => s + (t.status==='lost' ? t.stake : t.status==='won' ? -(t.payout||0) : 0), 0)
+
+  document.getElementById('trades-kpis').innerHTML = `
+    <div class="kpi-card blue"><div class="kpi-label">Total Real Trades</div><div class="kpi-value">${realTrades.length}</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Won</div><div class="kpi-value text-green">${won.length}</div></div>
+    <div class="kpi-card red"><div class="kpi-label">Lost</div><div class="kpi-value text-red">${lost.length}</div></div>
+    <div class="kpi-card purple"><div class="kpi-label">Total Volume</div><div class="kpi-value">$${fmt(totalStaked)}</div></div>
+    <div class="kpi-card cyan"><div class="kpi-label">House Edge</div><div class="kpi-value ${houseEdge>=0?'text-green':'text-red'}">${houseEdge>=0?'+':''}$${fmt(houseEdge)}</div></div>
+    <div class="kpi-card yellow"><div class="kpi-label">Win Rate</div><div class="kpi-value">${realTrades.length > 0 ? ((won.length/realTrades.length)*100).toFixed(1) : 0}%</div></div>
+  `
+  renderTrades()
+}
+
+function renderTrades() {
+  const search  = document.getElementById('trades-search')?.value.toLowerCase() || ''
+  const statusF = document.getElementById('trades-status-filter')?.value || ''
+  const typeF   = document.getElementById('trades-type-filter')?.value || ''
+  const filtered = allTradesData.filter(t => {
+    const ms  = !search || (t.profile.email||'').includes(search)
+    const mst = !statusF || t.status === statusF
+    const mtt = !typeF || t.trade_type === typeF
+    return ms && mst && mtt
+  })
+  const tbody = document.getElementById('trades-tbody')
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="10" class="loading">No trades found</td></tr>'; return }
+  tbody.innerHTML = filtered.map(t => {
+    const pl = t.profit_loss || 0
+    return `<tr>
+      <td><div style="font-size:12px">${t.profile.email||t.user_id?.slice(0,8)||'—'}</div></td>
+      <td style="font-size:11px">${t.asset||'—'}</td>
+      <td style="font-size:11px">${t.trade_type}</td>
+      <td style="font-size:11px">${t.direction}</td>
+      <td class="mono">$${fmt(t.stake)}</td>
+      <td class="mono">$${fmt(t.payout)}</td>
+      <td class="mono ${pl>=0?'text-green':'text-red'}">${pl>=0?'+':''}$${fmt(pl)}</td>
+      <td>${statusBadge(t.status)}</td>
+      <td>${t.is_demo ? '<span class="badge gray">Demo</span>' : '<span class="badge blue">Real</span>'}</td>
+      <td style="font-size:11px;color:var(--muted)">${fmtDateShort(t.created_at)}</td>
+    </tr>`
+  }).join('')
+}
+
+function filterTrades() { renderTrades() }
+
+// ══════════════════════════════════════════════════════════════════════════
+//  RISK MONITOR
+// ══════════════════════════════════════════════════════════════════════════
+async function loadRisk() {
+  if (!allTraders.length) await loadTraders()
+
+  const highBalance = allTraders.filter(t => (t.wallet.real_balance||0) > 500).sort((a,b) => b.wallet.real_balance - a.wallet.real_balance)
+  const highWinRate = allTraders.filter(t => t.trades.total >= 10 && (t.trades.won/t.trades.total) > 0.65).sort((a,b) => (b.trades.won/b.trades.total) - (a.trades.won/a.trades.total))
+
+  const hbEl = document.getElementById('high-balance-list')
+  hbEl.innerHTML = highBalance.length ? highBalance.slice(0,8).map(t => `
+    <div class="trader-stat">
+      <span class="trader-stat-label">${t.full_name||t.email}</span>
+      <span class="trader-stat-value text-red">$${fmt(t.wallet.real_balance)}</span>
+    </div>`).join('') : '<div class="loading">No high-balance traders</div>'
+
+  const hwEl = document.getElementById('high-winrate-list')
+  hwEl.innerHTML = highWinRate.length ? highWinRate.slice(0,8).map(t => {
+    const wr = ((t.trades.won/t.trades.total)*100).toFixed(1)
+    return `<div class="trader-stat">
+      <span class="trader-stat-label">${t.full_name||t.email}</span>
+      <span class="trader-stat-value text-yellow">${wr}% (${t.trades.total} trades)</span>
+    </div>`
+  }).join('') : '<div class="loading">No high win-rate traders</div>'
+
+  const { data: largeTrades } = await sb.from('positions').select('*, profiles(email,full_name)').eq('is_demo', false).gte('stake', 50).order('created_at', { ascending: false }).limit(20)
+  const ltEl = document.getElementById('large-trades-list')
+  if (!largeTrades || !largeTrades.length) { ltEl.innerHTML = '<div class="loading">No large trades recently</div>'; return }
+  ltEl.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Trader</th><th>Stake</th><th>Type</th><th>Status</th><th>P&L</th><th>Date</th></tr></thead><tbody>
+    ${largeTrades.map(t => `<tr>
+      <td>${t.profiles?.email||t.user_id?.slice(0,8)}</td>
+      <td class="mono text-yellow">$${fmt(t.stake)}</td>
+      <td style="font-size:11px">${t.trade_type}</td>
+      <td>${statusBadge(t.status)}</td>
+      <td class="mono ${(t.profit_loss||0)>=0?'text-green':'text-red'}">${(t.profit_loss||0)>=0?'+':''}$${fmt(t.profit_loss||0)}</td>
+      <td style="font-size:11px;color:var(--muted)">${fmtDateShort(t.created_at)}</td>
+    </tr>`).join('')}
+  </tbody></table></div>`
+
+  const totalTraders = allTraders.length
+  const withBalance  = allTraders.filter(t => (t.wallet.real_balance||0) > 0).length
+  const totalRisk    = allTraders.reduce((s,t) => s + (t.wallet.real_balance||0), 0)
+  document.getElementById('risk-kpis').innerHTML = `
+    <div class="kpi-card red"><div class="kpi-label">High Balance Traders</div><div class="kpi-value">${highBalance.length}</div><div class="kpi-sub">Real balance &gt; $500</div></div>
+    <div class="kpi-card yellow"><div class="kpi-label">High Win Rate</div><div class="kpi-value">${highWinRate.length}</div><div class="kpi-sub">&gt;65% win rate, 10+ trades</div></div>
+    <div class="kpi-card blue"><div class="kpi-label">Funded Traders</div><div class="kpi-value">${withBalance}</div><div class="kpi-sub">of ${totalTraders} total</div></div>
+    <div class="kpi-card purple"><div class="kpi-label">Total Trader Funds</div><div class="kpi-value">$${fmt(totalRisk)}</div><div class="kpi-sub">At risk</div></div>
+  `
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  REFERRALS
+// ══════════════════════════════════════════════════════════════════════════
+async function loadReferrals() {
+  const { data: refs } = await sb.from('referrals').select('*').order('created_at', { ascending: false })
+  if (!refs || !refs.length) {
+    document.getElementById('referrals-tbody').innerHTML = '<tr><td colspan="4" class="loading">No referrals</td></tr>'
+    document.getElementById('referrals-kpis').innerHTML = '<div class="kpi-card blue"><div class="kpi-label">Total Referrals</div><div class="kpi-value">0</div></div>'
+    return
+  }
+  const uids = [...new Set([...refs.map(r => r.referrer_id), ...refs.map(r => r.referee_id)].filter(Boolean))]
+  const { data: profiles } = await sb.from('profiles').select('id, email, full_name').in('id', uids)
+  const { data: wallets }  = await sb.from('wallets').select('user_id, real_balance').in('user_id', uids)
+  const pmap = {}; (profiles||[]).forEach(p => pmap[p.id] = p)
+  const wmap = {}; (wallets||[]).forEach(w => wmap[w.user_id] = w)
+
+  document.getElementById('referrals-kpis').innerHTML = `
+    <div class="kpi-card blue"><div class="kpi-label">Total Referrals</div><div class="kpi-value">${refs.length}</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Unique Referrers</div><div class="kpi-value">${new Set(refs.map(r=>r.referrer_id)).size}</div></div>
+  `
+  document.getElementById('referrals-tbody').innerHTML = refs.map(r => `<tr>
+    <td>${pmap[r.referrer_id]?.email||r.referrer_id?.slice(0,8)||'—'}</td>
+    <td>${pmap[r.referee_id]?.email||r.referee_id?.slice(0,8)||'—'}</td>
+    <td class="mono">$${fmt(wmap[r.referee_id]?.real_balance||0)}</td>
+    <td style="font-size:11px;color:var(--muted)">${fmtDateShort(r.created_at)}</td>
+  </tr>`).join('')
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  SETTINGS
+// ══════════════════════════════════════════════════════════════════════════
+function saveSettings() {
+  showToast('Settings saved (stored in localStorage for now — add a settings table for persistence)')
+  localStorage.setItem('bf_settings', JSON.stringify({
+    maintenance: document.getElementById('setting-maintenance').value,
+    minDeposit:  document.getElementById('setting-min-deposit').value,
+    minWithdraw: document.getElementById('setting-min-withdraw').value,
+    maxStake:    document.getElementById('setting-max-stake').value,
+    kesRate:     document.getElementById('setting-kes-rate').value,
+  }))
+}
+
+function confirmResetDemo() {
+  showConfirm(
+    'Reset All Demo Balances',
+    'This will set ALL demo balances back to $10,000. This cannot be undone. Are you absolutely sure?',
+    async () => {
+      const { error } = await sb.from('wallets').update({ demo_balance: 10000 })
+      if (error) { showToast('Error: ' + error.message, 'error'); return }
+      showToast('All demo balances reset to $10,000')
+    }
+  )
+}
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open') })
+})
+
+// Keyboard shortcut
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'))
+})
+
+// Enter key on login
+document.getElementById('login-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin()
+})
+</script>
+</body>
+</html>
