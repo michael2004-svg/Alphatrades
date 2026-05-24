@@ -474,6 +474,16 @@
             <div id="top-traders-list" class="loading"><span class="spinner"></span></div>
           </div>
         </div>
+           <!-- Recent Activity Feed -->
+<div class="card" style="margin-top:16px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div class="card-title" style="margin-bottom:0;">Recent Transactions</div>
+    <button class="btn btn-ghost btn-sm" onclick="loadDashboard()">Refresh</button>
+  </div>
+  <div id="recent-activity-feed">
+    <div class="loading"><span class="spinner"></span> Loading...</div>
+  </div>
+</div>
       </div>
 
       <!-- ══ ANALYTICS PAGE ══ -->
@@ -1105,6 +1115,7 @@ async function loadDashboard() {
   await buildTradesChart()
   buildWinLossChart(wonTrades.length, lostTrades.length)
   await buildTopTraders()
+await buildRecentActivity()
 }
 
 async function buildDepositChart() {
@@ -1475,10 +1486,28 @@ function renderDeposits() {
 
 function filterDeposits() { renderDeposits() }
 
+// ── updateDepositStatus — now credits wallet on manual approve ──
 async function updateDepositStatus(id, status) {
+  // Find the deposit to get user_id and amount
+  const deposit = allDepositsData.find(d => d.id === id)
+
   const { error } = await sb.from('deposits').update({ status }).eq('id', id)
   if (error) { showToast('Error: ' + error.message, 'error'); return }
-  showToast(`Deposit ${status}`)
+
+  // If manually approving, credit the user's wallet
+  if (status === 'completed' && deposit && deposit.user_id) {
+    const { data: wallet } = await sb.from('wallets').select('real_balance').eq('user_id', deposit.user_id).single()
+    if (wallet) {
+      const newBalance = parseFloat(wallet.real_balance || 0) + parseFloat(deposit.amount_usd || 0)
+      await sb.from('wallets').update({
+        real_balance: newBalance,
+        updated_at: new Date().toISOString()
+      }).eq('user_id', deposit.user_id)
+      showToast(`Deposit approved & $${fmt(deposit.amount_usd)} credited to user`)
+    }
+  } else {
+    showToast(`Deposit ${status}`)
+  }
   loadDeposits()
 }
 
@@ -1562,6 +1591,55 @@ async function updateWithdrawalStatus(id, status, userId, amount) {
   )
 }
 
+  
+// ── Recent Activity Feed on Dashboard ──
+async function buildRecentActivity() {
+  const el = document.getElementById('recent-activity-feed')
+  if (!el) return
+
+  // Fetch last 15 deposits + 15 withdrawals in parallel
+  const [{ data: deps }, { data: wds }] = await Promise.all([
+    sb.from('deposits').select('id, user_id, amount_usd, amount_kes, status, method, mpesa_receipt, created_at').order('created_at', { ascending: false }).limit(15),
+    sb.from('withdrawals').select('id, user_id, amount, status, method, destination, created_at').order('created_at', { ascending: false }).limit(15),
+  ])
+
+  // Collect all user IDs and fetch profiles once
+  const uids = [...new Set([...(deps||[]).map(d=>d.user_id), ...(wds||[]).map(w=>w.user_id)].filter(Boolean))]
+  const { data: profiles } = uids.length ? await sb.from('profiles').select('id, email, full_name').in('id', uids) : { data: [] }
+  const pmap = {}; (profiles||[]).forEach(p => pmap[p.id] = p)
+
+  // Merge and sort
+  const items = [
+    ...(deps||[]).map(d => ({ ...d, _type: 'deposit',    _amount: d.amount_usd, _label: `Deposit via ${d.method||'M-Pesa'}`, _sub: d.mpesa_receipt || `KES ${d.amount_kes||0}` })),
+    ...(wds||[]).map(w  => ({ ...w, _type: 'withdrawal', _amount: w.amount,     _label: `Withdrawal via ${w.method||'M-Pesa'}`, _sub: w.destination || '' })),
+  ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 20)
+
+  if (!items.length) { el.innerHTML = '<div class="loading">No transactions yet</div>'; return }
+
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>User</th><th>Type</th><th>Amount</th><th>Detail</th><th>Status</th><th>Date</th></tr></thead>
+    <tbody>
+      ${items.map(item => {
+        const p = pmap[item.user_id] || {}
+        const isDeposit = item._type === 'deposit'
+        const amtColor = isDeposit ? 'text-green' : 'text-red'
+        const amtPrefix = isDeposit ? '+' : '-'
+        return `<tr>
+          <td>
+            <div style="font-weight:600;font-size:12px">${p.full_name||'—'}</div>
+            <div style="font-size:11px;color:var(--muted)">${p.email||item.user_id?.slice(0,8)||'—'}</div>
+          </td>
+          <td><span class="badge ${isDeposit ? 'green' : 'red'}">${isDeposit ? '↓ Deposit' : '↑ Withdrawal'}</span></td>
+          <td class="mono ${amtColor}">${amtPrefix}$${fmt(item._amount)}</td>
+          <td style="font-size:11px;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item._sub||'—'}</td>
+          <td>${statusBadge(item.status)}</td>
+          <td style="font-size:11px;color:var(--muted)">${fmtDate(item.created_at)}</td>
+        </tr>`
+      }).join('')}
+    </tbody>
+  </table></div>`
+}
+  
 // ══════════════════════════════════════════════════════════════════════════
 //  BALANCE MANAGER
 // ══════════════════════════════════════════════════════════════════════════

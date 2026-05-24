@@ -25,14 +25,19 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (!deposit) {
-      return NextResponse.json({ ok: true }) // Ignore unknown deposits
+      return NextResponse.json({ ok: true }) // Unknown deposit — ignore
+    }
+
+    // Prevent double-crediting if poll_route already handled it
+    if (deposit.status === 'completed') {
+      return NextResponse.json({ ok: true })
     }
 
     if (ResultCode === 0 && CallbackMetadata) {
-      // Payment successful
       const items = CallbackMetadata.Item || []
       const receipt = items.find((i: any) => i.Name === 'MpesaReceiptNumber')?.Value
 
+      // Mark deposit completed
       await supabase
         .from('deposits')
         .update({
@@ -44,7 +49,7 @@ export async function POST(req: NextRequest) {
       // Credit user balance
       const { data: wallet } = await supabase
         .from('wallets')
-        .select('*')
+        .select('real_balance')
         .eq('user_id', deposit.user_id)
         .single()
 
@@ -52,13 +57,12 @@ export async function POST(req: NextRequest) {
         await supabase
           .from('wallets')
           .update({
-            real_balance: wallet.real_balance + deposit.amount_usd,
+            real_balance: parseFloat(wallet.real_balance) + parseFloat(deposit.amount_usd),
             updated_at: new Date().toISOString(),
           })
           .eq('user_id', deposit.user_id)
       }
     } else {
-      // Payment failed/cancelled
       await supabase
         .from('deposits')
         .update({ status: 'failed' })

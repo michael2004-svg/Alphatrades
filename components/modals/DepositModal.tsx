@@ -1,48 +1,117 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Smartphone, Coins, ArrowRight, Copy, Check, Zap } from 'lucide-react'
-import Image from 'next/image'
+import { useState, useEffect, useRef } from 'react'
+import { X, Smartphone, Coins, ArrowRight, Copy, Check, Zap, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { supabase } from '@/lib/supabase'
 
 interface Props { onClose: () => void }
 
-// OKX deposit address — update if address changes
 const OKX_USDT_ADDRESS = 'TFViLd13Zz8b5LVW8vy5WrdbAQ44GbSprG'
-// Path to the OKX QR code image (put the QR jpg in /public/images/)
 const OKX_QR_IMAGE = '/images/okx-qr.jpg'
 
 const PAYMENT_METHODS = [
-  { id: 'mpesa', label: 'M-Pesa',          desc: 'Instant mobile money (KES)',     icon: Smartphone, color: '#00C48C' },
-  { id: 'okx',   label: 'OKX / USDT',      desc: 'Crypto · scan QR or copy address', icon: Coins,  color: '#FFB800' },
+  { id: 'mpesa', label: 'M-Pesa',     desc: 'Instant mobile money (KES)',        icon: Smartphone, color: '#00C48C' },
+  { id: 'okx',   label: 'OKX / USDT', desc: 'Crypto · scan QR or copy address',  icon: Coins,      color: '#FFB800' },
 ]
 
 const KES_RATE = 129
 const MIN_DEPOSIT_USD = 5
 
+type PollStatus = 'idle' | 'polling' | 'completed' | 'failed'
+
 export default function DepositModal({ onClose }: Props) {
-  const [step, setStep] = useState<'method' | 'mpesa' | 'okx'>('method')
-  const [amount, setAmount] = useState('')
-  const [phone, setPhone] = useState('')
+  const [step, setStep]       = useState<'method' | 'mpesa' | 'okx'>('method')
+  const [amount, setAmount]   = useState('')
+  const [phone, setPhone]     = useState('')
   const [loading, setLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied]   = useState(false)
   const [stkSent, setStkSent] = useState(false)
+  const [checkoutRequestId, setCheckoutRequestId] = useState<string | null>(null)
+  const [pollStatus, setPollStatus] = useState<PollStatus>('idle')
+  const pollRef = useRef<NodeJS.Timeout | null>(null)
 
   const amountNum = parseFloat(amount) || 0
   const kesAmount = amountNum * KES_RATE
 
+  // ── Poll for payment confirmation ──────────────────────────────────────
+  useEffect(() => {
+    if (!stkSent || !checkoutRequestId) return
+
+    let attempts = 0
+    const MAX_ATTEMPTS = 20 // 20 × 5s = 100s
+
+    setPollStatus('polling')
+
+    const poll = async () => {
+      try {
+        // Get current session token to identify the user server-side
+        const { data: { session } } = await supabase.auth.getSession()
+        const userId = session?.user?.id
+
+        const res = await fetch(
+          `/api/deposit/poll?checkoutRequestId=${checkoutRequestId}&userId=${userId || ''}`,
+        )
+        const data = await res.json()
+
+        if (data.status === 'completed') {
+          setPollStatus('completed')
+          toast.success(`Deposit confirmed! +$${data.amountUsd?.toFixed(2) || amountNum.toFixed(2)} added to your balance.`)
+          // Trigger a page reload so balance updates
+          setTimeout(() => { onClose(); window.location.reload() }, 1500)
+          return
+        }
+
+        if (data.status === 'failed' || data.status === 'cancelled') {
+          setPollStatus('failed')
+          toast.error('Payment failed or was cancelled. Please try again.')
+          return
+        }
+
+        attempts++
+        if (attempts >= MAX_ATTEMPTS) {
+          setPollStatus('failed')
+          toast.error('Payment timed out. If you paid, contact support.')
+          return
+        }
+
+        // Still pending — poll again in 5s
+        pollRef.current = setTimeout(poll, 5000)
+      } catch {
+        attempts++
+        if (attempts < MAX_ATTEMPTS) pollRef.current = setTimeout(poll, 5000)
+      }
+    }
+
+    // Start polling after 5s (give M-Pesa time to process)
+    pollRef.current = setTimeout(poll, 5000)
+
+    return () => { if (pollRef.current) clearTimeout(pollRef.current) }
+  }, [stkSent, checkoutRequestId])
+
+  // ── Initiate STK push ──────────────────────────────────────────────────
   const handleMpesaDeposit = async () => {
     if (!amount || !phone) { toast.error('Enter amount and phone number'); return }
     if (amountNum < MIN_DEPOSIT_USD) { toast.error(`Minimum deposit is $${MIN_DEPOSIT_USD}`); return }
+
     setLoading(true)
     try {
+      // Pass the auth token so the server can identify the user
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
       const res = await fetch('/api/deposit/mpesa', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ amount: Math.round(kesAmount), phone }),
       })
       const data = await res.json()
+
       if (data.success) {
+        setCheckoutRequestId(data.checkoutRequestId)
         setStkSent(true)
         toast.success('STK Push sent! Check your phone.')
       } else {
@@ -70,9 +139,7 @@ export default function DepositModal({ onClose }: Props) {
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#1a2235]">
           <div>
             <h2 className="font-display font-bold text-lg text-white">
-              {step === 'method' ? 'Deposit Funds'
-                : step === 'mpesa' ? 'M-Pesa'
-                : 'OKX / USDT'}
+              {step === 'method' ? 'Deposit Funds' : step === 'mpesa' ? 'M-Pesa' : 'OKX / USDT'}
             </h2>
             <p className="text-xs text-[#5A6380] mt-1">
               {step === 'method' ? 'Choose a payment method' : 'Complete your deposit'}
@@ -179,20 +246,50 @@ export default function DepositModal({ onClose }: Props) {
             </div>
           )}
 
-          {/* ── M-Pesa success ── */}
-          {step === 'mpesa' && stkSent && (
+          {/* ── M-Pesa waiting / polling ── */}
+          {step === 'mpesa' && stkSent && pollStatus !== 'completed' && pollStatus !== 'failed' && (
             <div className="text-center space-y-5 py-4">
               <div className="w-16 h-16 rounded-full bg-win/15 flex items-center justify-center mx-auto">
-                <Check size={30} className="text-win" />
+                <Loader2 size={30} className="text-win animate-spin" />
               </div>
               <div>
                 <h3 className="font-display font-bold text-lg text-white">STK Push Sent!</h3>
                 <p className="text-[#5A6380] text-sm mt-2 leading-relaxed">Check your phone and enter your M-Pesa PIN to complete.</p>
               </div>
               <div className="bg-[#070d1a] border border-win/20 rounded-[12px] p-4 text-sm text-[#5A6380]">
-                Balance updates automatically once confirmed.
+                Waiting for confirmation… Balance updates automatically.
               </div>
-              <button onClick={onClose} className="w-full bg-[#1a2235] hover:bg-[#2a3555] text-white font-bold py-4 rounded-[22px] transition-all">Done</button>
+              <button onClick={onClose} className="w-full bg-[#1a2235] hover:bg-[#2a3555] text-white font-bold py-4 rounded-[22px] transition-all">Close & wait in background</button>
+            </div>
+          )}
+
+          {/* ── Payment confirmed ── */}
+          {step === 'mpesa' && stkSent && pollStatus === 'completed' && (
+            <div className="text-center space-y-5 py-4">
+              <div className="w-16 h-16 rounded-full bg-win/15 flex items-center justify-center mx-auto">
+                <Check size={30} className="text-win" />
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-lg text-white">Payment Confirmed!</h3>
+                <p className="text-[#5A6380] text-sm mt-2">Your balance has been updated.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Payment failed ── */}
+          {step === 'mpesa' && stkSent && pollStatus === 'failed' && (
+            <div className="text-center space-y-5 py-4">
+              <div className="w-16 h-16 rounded-full bg-red-500/15 flex items-center justify-center mx-auto">
+                <X size={30} className="text-red-400" />
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-lg text-white">Payment Failed</h3>
+                <p className="text-[#5A6380] text-sm mt-2">The payment was cancelled or timed out.</p>
+              </div>
+              <button onClick={() => { setStkSent(false); setPollStatus('idle'); setCheckoutRequestId(null) }}
+                className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-4 rounded-[22px] transition-all">
+                Try Again
+              </button>
             </div>
           )}
 
@@ -200,26 +297,18 @@ export default function DepositModal({ onClose }: Props) {
           {step === 'okx' && (
             <div className="space-y-5">
               <button onClick={() => setStep('method')} className="text-xs text-[#5A6380] hover:text-white flex items-center gap-1.5 transition-colors">← Back</button>
-
-              {/* QR Code */}
               <div className="flex flex-col items-center gap-3">
                 <p className="text-[10px] font-bold text-[#5A6380] uppercase tracking-widest self-start">Scan QR Code</p>
                 <div className="bg-white p-3 rounded-[12px] w-48 h-48 flex items-center justify-center">
-                  {/* Replace src with your actual QR image path in /public/images/ */}
                   <img
                     src={OKX_QR_IMAGE}
                     alt="OKX USDT QR Code"
                     className="w-full h-full object-contain"
-                    onError={(e) => {
-                      // Fallback if image not found
-                      (e.target as HTMLImageElement).style.display = 'none'
-                    }}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                   />
                 </div>
                 <p className="text-xs text-[#5A6380] text-center">Scan with OKX app or any USDT wallet</p>
               </div>
-
-              {/* Address */}
               <div className="bg-[#070d1a] border border-warning/25 rounded-[12px] p-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-warning">USDT Deposit Address</span>
@@ -233,8 +322,6 @@ export default function DepositModal({ onClose }: Props) {
                   {copied ? 'Copied!' : 'Copy Address'}
                 </button>
               </div>
-
-              {/* Info */}
               <div className="text-xs text-[#5A6380] space-y-2 bg-[#070d1a] rounded-[12px] p-4">
                 <div className="flex items-center gap-2"><Zap size={11} className="text-warning flex-shrink-0" /> Minimum deposit: <span className="text-white font-semibold">$5 USDT</span></div>
                 <div>• Network: TRON (TRC20) only — do not send on other networks</div>
