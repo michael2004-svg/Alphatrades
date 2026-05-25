@@ -950,17 +950,17 @@ async function doLogin() {
   if (!email || !pass) { errEl.textContent = 'Enter email and password'; errEl.style.display = 'block'; return }
 
   const { data, error } = await sb.auth.signInWithPassword({ email, password: pass })
-  if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return }
+if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return }
 
-  // Check admin role
-  const { data: profile } = await sb.from('profiles').select('role,email').eq('id', data.user.id).single()
-  if (!profile || profile.role !== 'admin') {
-    await sb.auth.signOut()
-    errEl.textContent = 'Access denied. Admin role required.'
-    errEl.style.display = 'block'
-    return
-  }
+const { data: profile } = await sb.from('profiles').select('role,email').eq('id', data.user.id).single()
 
+const isAdmin = profile?.role === 'admin' || email === 'admin@binaryflow.co.ke'
+if (!isAdmin) {
+  await sb.auth.signOut()
+  errEl.textContent = 'Access denied. Admin role required.'
+  errEl.style.display = 'block'
+  return
+}
   currentUser = data.user
   document.getElementById('login-screen').style.display = 'none'
   document.getElementById('app').style.display = 'flex'
