@@ -17,6 +17,7 @@ interface TradeStore {
   isAutoRunning: boolean
   autoSessionProfit: number
   autoTradeCount: number
+  baseStake: number  // FIX: track base stake before martingale to reset correctly
 
   setTradeType: (t: 'even_odd' | 'matches_differs' | 'over_under') => void
   setDirection: (d: string | null) => void
@@ -34,8 +35,9 @@ export const useTradeStore = create<TradeStore>((set) => ({
   tradeType: 'even_odd',
   direction: null,
   stake: 10,
+  baseStake: 10,
   selectedDigit: 5,
-  ticks: 1, // default 1 tick = instant result like Deriv/Binary.com
+  ticks: 1,
   mode: 'manual',
   autoConfig: {
     targetProfit: 200,
@@ -48,8 +50,8 @@ export const useTradeStore = create<TradeStore>((set) => ({
 
   setTradeType: (tradeType) => set({ tradeType, direction: null }),
   setDirection: (direction) => set({ direction }),
-  setStake: (stake) => set({ stake: Math.max(0.1, stake) }),
-  setSelectedDigit: (d) => set({ selectedDigit: Math.max(1, Math.min(9, d)) }),
+  setStake: (stake) => set({ stake: Math.max(0.1, stake), baseStake: Math.max(0.1, stake) }),
+  setSelectedDigit: (d) => set({ selectedDigit: Math.max(0, Math.min(9, d)) }),
   setTicks: (ticks) => set({ ticks: Math.max(1, Math.min(ticks, 10)) }),
   setMode: (mode) => set({ mode }),
   setAutoConfig: (config) => set((state) => ({
@@ -60,15 +62,16 @@ export const useTradeStore = create<TradeStore>((set) => ({
   recordAutoResult: (profitLoss) => set((state) => ({
     autoSessionProfit: state.autoSessionProfit + profitLoss,
     autoTradeCount: state.autoTradeCount + 1,
+    // Martingale: multiply on loss, reset to baseStake on win
     stake: profitLoss < 0
       ? Math.min(state.stake * state.autoConfig.lossMultiplier, 10000)
-      : state.stake,
+      : state.baseStake,
   })),
 
-  resetAutoSession: () => set(() => ({
+  resetAutoSession: () => set((state) => ({
     autoSessionProfit: 0,
     autoTradeCount: 0,
     isAutoRunning: false,
-    stake: 10,
+    stake: state.baseStake,  // reset to base, not hardcoded 10
   })),
 }))

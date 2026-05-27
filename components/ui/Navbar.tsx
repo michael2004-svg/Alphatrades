@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useUserStore } from '@/stores/useUserStore'
+import { fetchWalletBalances } from '@/services/tradeApi'
 import Image from 'next/image'
 import {
   ChevronDown, LogOut,
@@ -14,11 +15,96 @@ import toast from 'react-hot-toast'
 
 export default function Navbar() {
   const router = useRouter()
-  const { user, profile, realBalance, demoBalance, isDemo, toggleDemo } = useUserStore()
+  const {
+    user, profile, realBalance, demoBalance, isDemo, toggleDemo,
+    setUser, setProfile, setRealBalance, setDemoBalance, setIsDemo,
+  } = useUserStore()
   const [menuOpen, setMenuOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
 
   const balance = isDemo ? demoBalance : realBalance
+
+  // ── Auth init + balance sync ────────────────────────────────────────
+  useEffect(() => {
+    // Restore demo/real preference
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('Alphatrades_mode')
+      if (saved === 'real') setIsDemo(false)
+    }
+
+    // Get current session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) return
+      setUser(session.user)
+
+      // Load profile
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single()
+      if (prof) setProfile(prof)
+
+      // Load wallet — source of truth for balances
+      const wallet = await fetchWalletBalances(session.user.id)
+      if (wallet) {
+        setRealBalance(wallet.real_balance)
+        setDemoBalance(wallet.demo_balance)
+      }
+    })
+
+    // Auth state changes (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        setUser(session.user)
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()
+        if (prof) setProfile(prof)
+
+        const wallet = await fetchWalletBalances(session.user.id)
+        if (wallet) {
+          setRealBalance(wallet.real_balance)
+          setDemoBalance(wallet.demo_balance)
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null)
+        setProfile(null)
+        setRealBalance(0)
+        setDemoBalance(0)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // ── Realtime wallet balance updates ──────────────────────────────────
+  // This ensures balance stays in sync if another tab or the server updates it
+  useEffect(() => {
+    if (!user) return
+
+    const channel = supabase
+      .channel('wallet-balance')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'wallets',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const w = payload.new as any
+          setRealBalance(w.real_balance ?? 0)
+          setDemoBalance(w.demo_balance ?? 0)
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [user])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -98,167 +184,122 @@ export default function Navbar() {
               : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
           }`}>
             {isDemo ? <FlaskConical size={12} /> : <BadgeDollarSign size={12} />}
-            {isDemo ? 'DEMO' : 'REAL'}
+            <span>{isDemo ? 'Demo' : 'Real'}</span>
           </div>
 
-          {/* Account switcher */}
-          <div className="relative">
-            <button
-              onClick={() => setAccountOpen(!accountOpen)}
-              className="flex items-center gap-2 bg-[#080d1a] border border-[#0d1525] rounded-2xl px-3 py-2 hover:border-primary/40 transition-all"
-            >
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isDemo ? 'bg-amber-400' : 'bg-emerald-400'}`} />
-              <span className="font-mono text-sm font-semibold text-white tabular-nums">
-                ${balance.toFixed(2)}
-              </span>
-              <ChevronDown
-                size={14}
-                className={`text-[#4a5878] transition-transform duration-200 ${accountOpen ? 'rotate-180' : ''}`}
-              />
-            </button>
+          {/* Balance display */}
+          <div className="hidden sm:flex items-center gap-1 bg-[#0d1526] border border-[#1a2235] rounded-xl px-3 py-1.5">
+            <span className="text-[10px] text-[#5A6380] font-semibold">
+              {isDemo ? 'DEMO' : 'BAL'}
+            </span>
+            <span className="font-mono font-bold text-sm text-white ml-1">
+              ${balance.toFixed(2)}
+            </span>
+          </div>
 
-            {accountOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setAccountOpen(false)} />
-                <div className="absolute right-0 top-full mt-2 w-72 bg-[#080d1a] border border-[#0d1525] rounded-2xl shadow-2xl shadow-black/60 z-50 animate-slide-up">
+          {/* Account dropdown */}
+          {user && (
+            <div className="relative">
+              <button
+                onClick={() => setAccountOpen(!accountOpen)}
+                className="flex items-center gap-1.5 bg-[#0d1526] border border-[#1a2235] rounded-xl px-3 py-1.5 hover:border-primary/30 transition-all"
+              >
+                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                  <UserCircle2 size={14} className="text-primary" />
+                </div>
+                <span className="hidden sm:block text-xs font-semibold text-white max-w-[100px] truncate">
+                  {profile?.full_name || user.email?.split('@')[0]}
+                </span>
+                <ChevronDown size={12} className={`text-[#5A6380] transition-transform ${accountOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-                  <div className="px-5 pt-5 pb-4 rounded-t-2xl">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#4a5878]">Switch Account</p>
-                  </div>
-
-                  <button
-                    onClick={handleSwitchToReal}
-                    className={`w-full flex items-center justify-between px-5 py-4 hover:bg-[#0d1526] transition-colors ${!isDemo ? 'bg-emerald-500/5' : ''}`}
-                  >
-                    <div className="flex items-center gap-3.5">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${!isDemo ? 'bg-emerald-500/15' : 'bg-[#0d1526]'}`}>
-                        <BadgeDollarSign size={17} className={!isDemo ? 'text-emerald-400' : 'text-[#4a5878]'} />
+              {accountOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setAccountOpen(false)} />
+                  <div className="absolute right-0 top-full mt-2 w-64 bg-[#070d1a] border border-[#1a2235] rounded-xl shadow-2xl z-50 overflow-hidden">
+                    {/* Balance summary */}
+                    <div className="p-4 border-b border-[#1a2235]">
+                      <div className="text-[10px] text-[#5A6380] font-semibold uppercase tracking-wider mb-2">
+                        Account
                       </div>
-                      <div className="text-left">
-                        <div className="text-sm font-semibold text-white">Real Account</div>
-                        <div className="text-xs text-[#4a5878] mt-1">
-                          {user ? `$${realBalance.toFixed(2)}` : 'Login required'}
-                        </div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs text-[#5A6380]">Real</span>
+                        <span className="font-mono font-bold text-sm text-win">${realBalance.toFixed(2)}</span>
                       </div>
-                    </div>
-                    <div className="flex-shrink-0 ml-3">
-                      {!isDemo && <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full whitespace-nowrap">ACTIVE</span>}
-                      {!user && <AlertCircle size={14} className="text-[#4a5878]" />}
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={handleSwitchToDemo}
-                    className={`w-full flex items-center justify-between px-5 py-4 hover:bg-[#0d1526] transition-colors ${isDemo ? 'bg-amber-500/5' : ''}`}
-                  >
-                    <div className="flex items-center gap-3.5">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isDemo ? 'bg-amber-500/15' : 'bg-[#0d1526]'}`}>
-                        <FlaskConical size={17} className={isDemo ? 'text-amber-400' : 'text-[#4a5878]'} />
-                      </div>
-                      <div className="text-left">
-                        <div className="text-sm font-semibold text-white">Demo Account</div>
-                        <div className="text-xs text-[#4a5878] mt-1">${demoBalance.toFixed(2)} virtual</div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-[#5A6380]">Demo</span>
+                        <span className="font-mono font-bold text-sm text-white">${demoBalance.toFixed(2)}</span>
                       </div>
                     </div>
-                    <div className="flex-shrink-0 ml-3">
-                      {isDemo && <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full whitespace-nowrap">ACTIVE</span>}
-                    </div>
-                  </button>
 
-                  {!isDemo && user && (
-                    <div className="px-5 pb-5 pt-3 rounded-b-2xl">
+                    {/* Switch account */}
+                    <div className="p-2 border-b border-[#1a2235]">
                       <button
-                        onClick={() => { handleDeposit(); setAccountOpen(false) }}
-                        className="w-full bg-primary hover:bg-primary-dark text-white text-sm font-semibold py-3.5 rounded-xl transition-all"
+                        onClick={handleSwitchToReal}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all ${!isDemo ? 'bg-primary/10 text-primary' : 'text-white hover:bg-[#1a2235]'}`}
                       >
-                        + Deposit Funds
+                        <BadgeDollarSign size={14} />
+                        Real Account
+                        {!isDemo && <span className="ml-auto text-[10px] text-primary font-bold">ACTIVE</span>}
+                      </button>
+                      <button
+                        onClick={handleSwitchToDemo}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all ${isDemo ? 'bg-amber-500/10 text-amber-400' : 'text-white hover:bg-[#1a2235]'}`}
+                      >
+                        <FlaskConical size={14} />
+                        Demo Account
+                        {isDemo && <span className="ml-auto text-[10px] text-amber-400 font-bold">ACTIVE</span>}
                       </button>
                     </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
 
-          {user && (
-            <button
-              onClick={handleDeposit}
-              className="hidden sm:flex items-center gap-1.5 bg-primary hover:bg-primary-dark text-white text-sm font-semibold px-4 py-2 rounded-2xl transition-all shadow-lg shadow-primary/20"
-            >
-              Deposit
-            </button>
+                    {/* Actions */}
+                    <div className="p-2 border-b border-[#1a2235]">
+                      <button
+                        onClick={() => { handleDeposit(); setAccountOpen(false) }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-white hover:bg-[#1a2235] transition-all"
+                      >
+                        <ArrowDownToLine size={14} className="text-win" />
+                        Deposit
+                      </button>
+                      <button
+                        onClick={() => { handleWithdraw(); setAccountOpen(false) }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-white hover:bg-[#1a2235] transition-all"
+                      >
+                        <ArrowUpFromLine size={14} className="text-[#5A6380]" />
+                        Withdraw
+                      </button>
+                      <button
+                        onClick={() => { router.push('/positions'); setAccountOpen(false) }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-white hover:bg-[#1a2235] transition-all"
+                      >
+                        <History size={14} className="text-[#5A6380]" />
+                        Trade History
+                      </button>
+                    </div>
+
+                    {/* Logout */}
+                    <div className="p-2">
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-loss hover:bg-loss/10 transition-all"
+                      >
+                        <LogOut size={14} />
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           )}
 
-          {!user && (
-            <button
-              onClick={() => router.push('/login')}
-              className="hidden sm:flex items-center gap-1.5 bg-primary hover:bg-primary-dark text-white text-sm font-semibold px-4 py-2 rounded-2xl transition-all shadow-lg shadow-primary/20"
-            >
-              Log In
-            </button>
-          )}
-
-          {/* Profile menu — Bell removed */}
-          <div className="relative">
-            <button
-              onClick={() => user ? setMenuOpen(!menuOpen) : router.push('/login')}
-              className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center font-display font-bold text-white text-sm shadow-lg shadow-primary/30"
-            >
-              {profile?.full_name?.[0] || user?.email?.[0] || '?'}
-            </button>
-
-            {menuOpen && user && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-2 w-60 bg-[#080d1a] border border-[#0d1525] rounded-2xl shadow-2xl shadow-black/60 z-50 animate-slide-up">
-                  <div className="px-5 py-4 border-b border-[#0d1525] rounded-t-2xl">
-                    <div className="text-sm font-bold text-white truncate">{profile?.full_name || 'Trader'}</div>
-                    <div className="text-xs text-[#4a5878] truncate mt-1">{user?.email}</div>
-                  </div>
-                  <div className="py-2">
-                    <button
-                      onClick={() => { router.push('/wallet?deposit=true'); setMenuOpen(false) }}
-                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
-                    >
-                      <ArrowDownToLine size={15} /> <span className="text-sm">Deposit</span>
-                    </button>
-                    <button
-                      onClick={() => { router.push('/wallet?withdraw=true'); setMenuOpen(false) }}
-                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
-                    >
-                      <ArrowUpFromLine size={15} /> <span className="text-sm">Withdraw</span>
-                    </button>
-                    <button
-                      onClick={() => { router.push('/wallet'); setMenuOpen(false) }}
-                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
-                    >
-                      <Wallet size={15} /> <span className="text-sm">Account</span>
-                    </button>
-                    <button
-                      onClick={() => { router.push('/positions'); setMenuOpen(false) }}
-                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
-                    >
-                      <History size={15} /> <span className="text-sm">History</span>
-                    </button>
-                    <button
-                      onClick={() => { router.push('/settings'); setMenuOpen(false) }}
-                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#0d1526] transition-colors text-[#4a5878] hover:text-white"
-                    >
-                      <Settings size={15} /> <span className="text-sm">Settings</span>
-                    </button>
-                  </div>
-                  <div className="border-t border-[#0d1525] py-2 rounded-b-2xl">
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#0d1526] transition-colors text-loss"
-                    >
-                      <LogOut size={15} /> <span className="text-sm font-medium">Sign out</span>
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+          {/* Mobile menu */}
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="lg:hidden w-9 h-9 bg-[#0d1526] border border-[#1a2235] rounded-xl flex items-center justify-center"
+          >
+            <Settings size={15} className="text-[#5A6380]" />
+          </button>
         </div>
       </div>
     </header>

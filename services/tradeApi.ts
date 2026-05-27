@@ -10,6 +10,7 @@ export interface PlaceTradeParams {
   isDemo: boolean
   entryPrice: number
   entryDigit: number
+  isAuto?: boolean
 }
 
 export interface TradeResult {
@@ -46,29 +47,40 @@ export function calculatePayout(
   return stake * 0.95
 }
 
+// ── Fetch admin-set win rate for this user (auto mode only) ────────────────
+export async function getUserWinControl(userId: string): Promise<{ enabled: boolean; autoWinRate: number }> {
+  try {
+    const { data } = await supabase
+      .from('user_win_controls')
+      .select('enabled, auto_win_rate')
+      .eq('user_id', userId)
+      .single()
+    if (!data) return { enabled: false, autoWinRate: 50 }
+    return { enabled: data.enabled, autoWinRate: data.auto_win_rate ?? 50 }
+  } catch {
+    return { enabled: false, autoWinRate: 50 }
+  }
+}
+
 export async function placeTrade(params: PlaceTradeParams): Promise<TradeResult> {
   try {
     const payout = calculatePayout(
       params.tradeType, params.direction, params.stake, params.selectedDigit
     )
 
-    // ── DEMO GUEST (no Supabase session) ──────────────────────────────────
-    // Check auth without throwing — getUser() is safe even when logged out
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
       if (!params.isDemo) {
         return { success: false, error: 'Please log in to trade with a real account' }
       }
-      // Guest demo: generate a local position id, no DB call at all
       const fakeId = `demo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
       return { success: true, positionId: fakeId }
     }
 
-    // ── AUTHENTICATED USER ────────────────────────────────────────────────
     const balanceField = params.isDemo ? 'demo_balance' : 'real_balance'
 
-    // Fetch wallet
+    // Fetch wallet with single() — upsert if missing
     const { data: wallet, error: walletErr } = await supabase
       .from('wallets')
       .select('id, real_balance, demo_balance')
@@ -76,7 +88,6 @@ export async function placeTrade(params: PlaceTradeParams): Promise<TradeResult>
       .single()
 
     if (walletErr || !wallet) {
-      // Wallet row missing — create it on the fly then retry
       await supabase.from('wallets').upsert({
         user_id: user.id,
         real_balance: 0,
@@ -84,7 +95,6 @@ export async function placeTrade(params: PlaceTradeParams): Promise<TradeResult>
         referral_earnings: 0,
         updated_at: new Date().toISOString(),
       })
-      // For demo, we can still proceed with local id
       if (params.isDemo) {
         const fakeId = `demo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
         return { success: true, positionId: fakeId }
@@ -97,11 +107,13 @@ export async function placeTrade(params: PlaceTradeParams): Promise<TradeResult>
       return { success: false, error: 'Insufficient balance' }
     }
 
-    // Deduct stake
+    const newBalance = currentBalance - params.stake
+
+    // Deduct stake atomically
     const { error: deductErr } = await supabase
       .from('wallets')
       .update({
-        [balanceField]: currentBalance - params.stake,
+        [balanceField]: newBalance,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', user.id)
@@ -124,15 +136,16 @@ export async function placeTrade(params: PlaceTradeParams): Promise<TradeResult>
         ticks_total: params.ticks,
         ticks_elapsed: 0,
         selected_digit: params.selectedDigit ?? null,
-        is_auto: false,
+        is_auto: params.isAuto ?? false,
         is_demo: params.isDemo,
+        balance_after: null,
         created_at: new Date().toISOString(),
       })
       .select('id')
       .single()
 
     if (posErr || !position) {
-      // Refund stake
+      // Refund stake on position insert failure
       await supabase
         .from('wallets')
         .update({ [balanceField]: currentBalance, updated_at: new Date().toISOString() })
@@ -147,20 +160,18 @@ export async function placeTrade(params: PlaceTradeParams): Promise<TradeResult>
   }
 }
 
-// ── Settlement ─────────────────────────────────────────────────────────────
+// ── Settlement ──────────────────────────────────────────────────────────────
 export async function settleTrade(
   positionId: string,
   exitPrice: number,
   exitDigit: number,
   userId: string,
-  isDemo: boolean
-): Promise<{ won: boolean; profitLoss: number } | null> {
+  isDemo: boolean,
+  isAuto: boolean = false,
+  forcedWin?: boolean   // set by admin win-rate control
+): Promise<{ won: boolean; profitLoss: number; newBalance: number } | null> {
   try {
-    // Guest demo positions have a local id — settle purely client-side
-    if (positionId.startsWith('demo_')) {
-      // Caller owns the position data; return null so caller uses its own state
-      return null
-    }
+    if (positionId.startsWith('demo_')) return null
 
     const { data: position, error: fetchErr } = await supabase
       .from('positions')
@@ -170,12 +181,36 @@ export async function settleTrade(
 
     if (fetchErr || !position || position.status !== 'open') return null
 
-    const won = checkWin(
+    // Determine win: if admin override active, use forcedWin; else real logic
+    const won = forcedWin !== undefined ? forcedWin : checkWin(
       position.trade_type, position.direction,
       exitDigit, position.selected_digit
     )
     const profitLoss = won ? position.payout : -position.stake
 
+    const balanceField = isDemo ? 'demo_balance' : 'real_balance'
+
+    // Fetch current wallet balance for balance_after calculation
+    const { data: wallet } = await supabase
+      .from('wallets')
+      .select('real_balance, demo_balance')
+      .eq('user_id', userId)
+      .single()
+
+    let newBalance = wallet ? wallet[balanceField] : 0
+
+    if (won && wallet) {
+      newBalance = wallet[balanceField] + position.stake + position.payout
+      await supabase
+        .from('wallets')
+        .update({
+          [balanceField]: newBalance,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId)
+    }
+
+    // Update position with full exit data including balance_after
     await supabase
       .from('positions')
       .update({
@@ -183,37 +218,34 @@ export async function settleTrade(
         exit_price: exitPrice,
         exit_digit: exitDigit,
         profit_loss: profitLoss,
+        balance_after: newBalance,
         closed_at: new Date().toISOString(),
       })
       .eq('id', positionId)
 
-    if (won && userId) {
-      const balanceField = isDemo ? 'demo_balance' : 'real_balance'
-      const { data: wallet } = await supabase
-        .from('wallets')
-        .select('real_balance, demo_balance')
-        .eq('user_id', userId)
-        .single()
-
-      if (wallet) {
-        await supabase
-          .from('wallets')
-          .update({
-            [balanceField]: wallet[balanceField] + position.stake + position.payout,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('user_id', userId)
-      }
-    }
-
-    return { won, profitLoss }
+    return { won, profitLoss, newBalance }
   } catch (e) {
     console.error('[settleTrade]', e)
     return null
   }
 }
 
-function checkWin(
+// ── Fetch real balances from DB (source of truth) ──────────────────────────
+export async function fetchWalletBalances(userId: string): Promise<{ real_balance: number; demo_balance: number } | null> {
+  try {
+    const { data, error } = await supabase
+      .from('wallets')
+      .select('real_balance, demo_balance')
+      .eq('user_id', userId)
+      .single()
+    if (error || !data) return null
+    return data
+  } catch {
+    return null
+  }
+}
+
+export function checkWin(
   tradeType: string,
   direction: string,
   exitDigit: number,
