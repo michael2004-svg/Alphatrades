@@ -73,14 +73,14 @@ export default function RegisterPage() {
       await supabase.from('wallets').upsert({ user_id: data.user.id, real_balance: 0, demo_balance: 10000, referral_earnings: 0, updated_at: new Date().toISOString() })
     }
 
-    localStorage.setItem('Binaryflow_mode', 'real')
-    toast.success('Account created! Welcome to Binaryflow 🎉')
+    localStorage.setItem('FlowBinary_mode', 'real')
+    toast.success('Account created! Welcome to FlowBinary 🎉')
     router.push('/trade')
   }
 
   const handleTryDemo = () => {
     setDemoLoading(true)
-    localStorage.setItem('Binaryflow_mode', 'demo')
+    localStorage.setItem('FlowBinary_mode', 'demo')
     router.push('/trade?demo=true')
   }
 
@@ -95,8 +95,8 @@ export default function RegisterPage() {
       {/* Left branding — desktop only */}
       <div className="hidden lg:flex flex-col justify-between w-[45%] p-14 relative border-r border-[#1a2235]">
         <div className="flex items-center gap-3">
-          <Image src="/logo.png" alt="Binaryflow" width={40} height={40} className="rounded-[10px]" />
-          <span className="font-display font-bold text-xl text-white tracking-tight">Binaryflow</span>
+          <Image src="/logo.png" alt="FlowBinary" width={40} height={40} className="rounded-[10px]" />
+          <span className="font-display font-bold text-xl text-white tracking-tight">FlowBinary</span>
         </div>
         <div className="space-y-7">
           <div>
@@ -128,7 +128,7 @@ export default function RegisterPage() {
           </div>
         </div>
         {/* FIX: was #2a3555 (invisible). Updated to #5A6380 */}
-        <div className="text-[#5A6380] text-xs">© 2026 Binaryflow. All rights reserved.</div>
+        <div className="text-[#5A6380] text-xs">© 2026 FlowBinary. All rights reserved.</div>
       </div>
 
       {/* Right form — vertically centred, scrollable */}
@@ -137,8 +137,8 @@ export default function RegisterPage() {
 
           {/* Mobile logo */}
           <div className="flex flex-col items-center gap-3 mb-10 lg:hidden">
-            <Image src="/logo.png" alt="Binaryflow" width={52} height={52} className="rounded-[12px]" />
-            <span className="font-display font-bold text-xl text-white tracking-tight">Binaryflow</span>
+            <Image src="/logo.png" alt="FlowBinary" width={52} height={52} className="rounded-[12px]" />
+            <span className="font-display font-bold text-xl text-white tracking-tight">FlowBinary</span>
           </div>
 
           <div className="mb-8">

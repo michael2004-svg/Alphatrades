@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Binaryflow Admin Dashboard</title>
+  <title>FlowBinary Admin Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <style>
@@ -329,7 +329,7 @@
     <div class="login-logo">
       <div class="login-logo-icon">BF</div>
       <div>
-        <div class="login-logo-text">Binaryflow</div>
+        <div class="login-logo-text">FlowBinary</div>
         <div class="login-subtitle">Admin Dashboard</div>
       </div>
     </div>
@@ -355,7 +355,7 @@
   <div id="sidebar">
     <div class="sidebar-logo">
       <div class="logo-icon">BF</div>
-      <span class="logo-text">Binaryflow</span>
+      <span class="logo-text">FlowBinary</span>
       <span class="logo-badge">ADMIN</span>
     </div>
 
@@ -407,7 +407,7 @@
         Trade History
       </button>
       <button class="nav-item" onclick="showPage('risk', this)">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         Risk Monitor
       </button>
     </div>
@@ -449,53 +449,43 @@
     <!-- Content -->
     <div id="content">
 
-      <!-- ══ DASHBOARD PAGE ══ -->
-      <div id="page-dashboard" class="page active">
+      <!-- DASHBOARD PAGE -->
+      <div class="page active" id="page-dashboard">
         <div class="kpi-grid" id="kpi-grid">
-          <div class="loading"><span class="spinner"></span></div>
+          <div class="kpi-card blue"><div class="kpi-label">Loading...</div><div class="kpi-value">—</div></div>
         </div>
         <div class="grid-2 mb-4">
-          <div class="card">
-            <div class="card-title">Deposits (Last 7 Days)</div>
-            <div class="chart-container"><canvas id="chart-deposits"></canvas></div>
-          </div>
           <div class="card">
             <div class="card-title">Trades (Last 7 Days)</div>
             <div class="chart-container"><canvas id="chart-trades"></canvas></div>
           </div>
-        </div>
-        <div class="grid-2">
           <div class="card">
-            <div class="card-title">Win vs Loss Rate</div>
+            <div class="card-title">Win / Loss Ratio</div>
             <div class="chart-container"><canvas id="chart-winloss"></canvas></div>
           </div>
+        </div>
+        <div class="grid-2 mb-4">
           <div class="card">
-            <div class="card-title">Top Traders Today</div>
-            <div id="top-traders-list" class="loading"><span class="spinner"></span></div>
+            <div class="card-title">Top Traders by Balance</div>
+            <div id="top-traders-list"><div class="loading">Loading...</div></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Recent Activity</div>
+            <div id="recent-activity-feed"><div class="loading">Loading...</div></div>
           </div>
         </div>
-           <!-- Recent Activity Feed -->
-<div class="card" style="margin-top:16px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-    <div class="card-title" style="margin-bottom:0;">Recent Transactions</div>
-    <button class="btn btn-ghost btn-sm" onclick="loadDashboard()">Refresh</button>
-  </div>
-  <div id="recent-activity-feed">
-    <div class="loading"><span class="spinner"></span> Loading...</div>
-  </div>
-</div>
       </div>
 
-      <!-- ══ ANALYTICS PAGE ══ -->
-      <div id="page-analytics" class="page">
+      <!-- ANALYTICS PAGE -->
+      <div class="page" id="page-analytics">
         <div class="kpi-grid" id="analytics-kpis"></div>
         <div class="card mb-4">
-          <div class="card-title">Daily Revenue (House Edge) — Last 30 Days</div>
+          <div class="card-title">House Revenue — Last 30 Days</div>
           <div class="chart-container tall"><canvas id="chart-revenue"></canvas></div>
         </div>
         <div class="grid-2">
           <div class="card">
-            <div class="card-title">New Users Per Day (Last 14 Days)</div>
+            <div class="card-title">New Users — Last 14 Days</div>
             <div class="chart-container"><canvas id="chart-users"></canvas></div>
           </div>
           <div class="card">
@@ -505,302 +495,233 @@
         </div>
       </div>
 
-      <!-- ══ TRADERS PAGE ══ -->
-      <div id="page-traders" class="page">
+      <!-- TRADERS PAGE -->
+      <div class="page" id="page-traders">
         <div class="filter-bar">
           <div class="search-wrap">
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" class="search-input" id="trader-search" placeholder="Search by name, email, phone..." oninput="filterTraders()" />
+            <input class="search-input" id="trader-search" placeholder="Search by name, email, phone..." oninput="filterTraders()" />
           </div>
-          <select class="form-input" id="trader-status-filter" onchange="filterTraders()" style="width:140px;flex:none;">
+          <select class="form-input" style="width:auto;" id="trader-status-filter" onchange="filterTraders()">
             <option value="">All Status</option>
             <option value="active">Active</option>
             <option value="suspended">Suspended</option>
             <option value="banned">Banned</option>
           </select>
-          <select class="form-input" id="trader-sort" onchange="filterTraders()" style="width:160px;flex:none;">
+          <select class="form-input" style="width:auto;" id="trader-sort" onchange="filterTraders()">
             <option value="created_at">Newest First</option>
-            <option value="balance_desc">Balance (High)</option>
-            <option value="balance_asc">Balance (Low)</option>
+            <option value="balance_desc">Highest Balance</option>
+            <option value="balance_asc">Lowest Balance</option>
             <option value="trades_desc">Most Trades</option>
           </select>
-          <button class="btn btn-primary btn-sm" onclick="loadTraders()">
-            <span class="spinner" id="traders-spinner" style="display:none"></span>
-            Refresh
-          </button>
+          <span class="spinner" id="traders-spinner" style="display:none;"></span>
         </div>
         <div class="card">
           <div class="table-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th>Trader</th>
-                  <th>Status</th>
-                  <th>Real Balance</th>
-                  <th>Demo Balance</th>
-                  <th>Trades</th>
-                  <th>Win Rate</th>
-                  <th>Net P&L</th>
-                  <th>Joined</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="traders-tbody">
-                <tr><td colspan="9" class="loading"><span class="spinner"></span></td></tr>
-              </tbody>
+              <thead><tr>
+                <th>Trader</th><th>Status</th><th>Real Bal</th><th>Demo Bal</th>
+                <th>Trades</th><th>Win Rate</th><th>Net P&L</th><th>Joined</th><th>Actions</th>
+              </tr></thead>
+              <tbody id="traders-tbody"><tr><td colspan="9" class="loading">Loading traders...</td></tr></tbody>
             </table>
           </div>
         </div>
       </div>
 
-      <!-- ══ KYC PAGE ══ -->
-      <div id="page-kyc" class="page">
-        <div class="card">
-          <div class="card-title">KYC Verification Queue</div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Trader</th>
-                  <th>Phone</th>
-                  <th>Joined</th>
-                  <th>KYC Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="kyc-tbody">
-                <tr><td colspan="5" class="loading"><span class="spinner"></span></td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- ══ DEPOSITS PAGE ══ -->
-      <div id="page-deposits" class="page">
+      <!-- KYC PAGE -->
+      <div class="page" id="page-kyc">
         <div class="filter-bar">
           <div class="search-wrap">
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" class="search-input" id="deposit-search" placeholder="Search receipt, email..." oninput="filterDeposits()" />
+            <input class="search-input" id="kyc-search" placeholder="Search by email..." oninput="filterKyc()" />
           </div>
-          <select class="form-input" id="deposit-status-filter" onchange="filterDeposits()" style="width:140px;flex:none;">
-            <option value="">All Status</option>
-            <option value="completed">Completed</option>
+          <select class="form-input" style="width:auto;" id="kyc-filter" onchange="filterKyc()">
+            <option value="">All</option>
             <option value="pending">Pending</option>
+            <option value="verified">Verified</option>
+          </select>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Trader</th><th>Email</th><th>Phone</th><th>KYC Status</th><th>Joined</th><th>Actions</th></tr></thead>
+              <tbody id="kyc-tbody"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- DEPOSITS PAGE -->
+      <div class="page" id="page-deposits">
+        <div class="kpi-grid" id="deposits-kpis"></div>
+        <div class="filter-bar">
+          <div class="search-wrap">
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" id="deposit-search" placeholder="Search by email or M-Pesa receipt..." oninput="filterDeposits()" />
+          </div>
+          <select class="form-input" style="width:auto;" id="deposit-status-filter" onchange="filterDeposits()">
+            <option value="">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
             <option value="failed">Failed</option>
           </select>
-          <button class="btn btn-primary btn-sm" onclick="loadDeposits()">Refresh</button>
         </div>
-        <div class="kpi-grid" id="deposits-kpis"></div>
         <div class="card">
           <div class="table-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th>Trader</th>
-                  <th>Amount USD</th>
-                  <th>Amount KES</th>
-                  <th>Method</th>
-                  <th>Receipt</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="deposits-tbody">
-                <tr><td colspan="8" class="loading"><span class="spinner"></span></td></tr>
-              </tbody>
+              <thead><tr><th>Trader</th><th>USD</th><th>KES</th><th>Method</th><th>Receipt</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+              <tbody id="deposits-tbody"><tr><td colspan="8" class="loading">Loading...</td></tr></tbody>
             </table>
           </div>
         </div>
       </div>
 
-      <!-- ══ WITHDRAWALS PAGE ══ -->
-      <div id="page-withdrawals" class="page">
+      <!-- WITHDRAWALS PAGE -->
+      <div class="page" id="page-withdrawals">
+        <div class="kpi-grid" id="withdrawals-kpis"></div>
         <div class="filter-bar">
           <div class="search-wrap">
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" class="search-input" id="withdrawal-search" placeholder="Search by destination, email..." oninput="filterWithdrawals()" />
+            <input class="search-input" id="withdrawal-search" placeholder="Search by email or destination..." oninput="filterWithdrawals()" />
           </div>
-          <select class="form-input" id="withdrawal-status-filter" onchange="filterWithdrawals()" style="width:140px;flex:none;">
+          <select class="form-input" style="width:auto;" id="withdrawal-status-filter" onchange="filterWithdrawals()">
             <option value="">All Status</option>
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
-          <button class="btn btn-primary btn-sm" onclick="loadWithdrawals()">Refresh</button>
         </div>
-        <div class="kpi-grid" id="withdrawals-kpis"></div>
         <div class="card">
           <div class="table-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th>Trader</th>
-                  <th>Amount</th>
-                  <th>Method</th>
-                  <th>Destination</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="withdrawals-tbody">
-                <tr><td colspan="7" class="loading"><span class="spinner"></span></td></tr>
-              </tbody>
+              <thead><tr><th>Trader</th><th>Amount</th><th>Method</th><th>Destination</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+              <tbody id="withdrawals-tbody"><tr><td colspan="7" class="loading">Loading...</td></tr></tbody>
             </table>
           </div>
         </div>
       </div>
 
-      <!-- ══ BALANCE MANAGER PAGE ══ -->
-      <div id="page-balances" class="page">
+      <!-- BALANCE MANAGER PAGE -->
+      <div class="page" id="page-balances">
         <div class="grid-2 mb-4">
           <div class="card">
             <div class="card-title">Adjust Trader Balance</div>
             <div class="form-group">
               <label class="form-label">Select Trader</label>
-              <select class="form-input" id="balance-trader-select">
-                <option value="">Loading traders...</option>
-              </select>
+              <select class="form-input" id="balance-trader-select"><option value="">Loading traders...</option></select>
             </div>
-            <div class="form-group">
-              <label class="form-label">Account Type</label>
-              <select class="form-input" id="balance-account-type">
-                <option value="real">Real Balance</option>
-                <option value="demo">Demo Balance</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Operation</label>
-              <select class="form-input" id="balance-operation">
-                <option value="add">Add Funds</option>
-                <option value="subtract">Subtract Funds</option>
-                <option value="set">Set Balance To</option>
-              </select>
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Account Type</label>
+                <select class="form-input" id="balance-account-type">
+                  <option value="real">Real</option>
+                  <option value="demo">Demo</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Operation</label>
+                <select class="form-input" id="balance-operation">
+                  <option value="add">Add</option>
+                  <option value="subtract">Subtract</option>
+                  <option value="set">Set to</option>
+                </select>
+              </div>
             </div>
             <div class="form-group">
               <label class="form-label">Amount (USD)</label>
               <input type="number" class="form-input" id="balance-amount" placeholder="0.00" min="0" step="0.01" />
             </div>
             <div class="form-group">
-              <label class="form-label">Admin Note</label>
-              <input type="text" class="form-input" id="balance-note" placeholder="Reason for adjustment..." />
+              <label class="form-label">Reason / Note</label>
+              <input type="text" class="form-input" id="balance-note" placeholder="e.g. Manual credit, bonus, correction..." />
             </div>
-            <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="adjustBalance()">
-              Apply Balance Adjustment
-            </button>
+            <button class="btn btn-primary" onclick="adjustBalance()">Apply Adjustment</button>
           </div>
           <div class="card">
-            <div class="card-title">Balance Overview</div>
-            <div id="balance-overview-list" class="loading"><span class="spinner"></span></div>
+            <div class="card-title">Top 10 Real Balances</div>
+            <div id="balance-overview-list"><div class="loading">Loading...</div></div>
           </div>
         </div>
         <div class="card">
-          <div class="card-title">Recent Balance Adjustments</div>
-          <div id="balance-log" class="loading"><span class="spinner"></span></div>
+          <div class="card-title">Adjustment Log</div>
+          <div id="balance-log"><div class="loading">No log entries yet</div></div>
         </div>
       </div>
 
-      <!-- ══ TRADES PAGE ══ -->
-      <div id="page-trades" class="page">
+      <!-- TRADES PAGE -->
+      <div class="page" id="page-trades">
+        <div class="kpi-grid" id="trades-kpis"></div>
         <div class="filter-bar">
           <div class="search-wrap">
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" class="search-input" id="trades-search" placeholder="Search by trader email..." oninput="filterTrades()" />
+            <input class="search-input" id="trades-search" placeholder="Search by email..." oninput="filterTrades()" />
           </div>
-          <select class="form-input" id="trades-status-filter" onchange="filterTrades()" style="width:130px;flex:none;">
-            <option value="">All</option>
+          <select class="form-input" style="width:auto;" id="trades-status-filter" onchange="filterTrades()">
+            <option value="">All Status</option>
+            <option value="open">Open</option>
             <option value="won">Won</option>
             <option value="lost">Lost</option>
-            <option value="open">Open</option>
+            <option value="refunded">Refunded</option>
           </select>
-          <select class="form-input" id="trades-type-filter" onchange="filterTrades()" style="width:160px;flex:none;">
+          <select class="form-input" style="width:auto;" id="trades-type-filter" onchange="filterTrades()">
             <option value="">All Types</option>
             <option value="even_odd">Even/Odd</option>
             <option value="matches_differs">Matches/Differs</option>
             <option value="over_under">Over/Under</option>
           </select>
-          <button class="btn btn-primary btn-sm" onclick="loadTrades()">Refresh</button>
         </div>
-        <div class="kpi-grid" id="trades-kpis"></div>
         <div class="card">
           <div class="table-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th>Trader</th>
-                  <th>Asset</th>
-                  <th>Type</th>
-                  <th>Direction</th>
-                  <th>Stake</th>
-                  <th>Payout</th>
-                  <th>P&L</th>
-                  <th>Status</th>
-                  <th>Mode</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody id="trades-tbody">
-                <tr><td colspan="10" class="loading"><span class="spinner"></span></td></tr>
-              </tbody>
+              <thead><tr><th>Trader</th><th>Asset</th><th>Type</th><th>Direction</th><th>Stake</th><th>Payout</th><th>P&L</th><th>Status</th><th>Mode</th><th>Date</th></tr></thead>
+              <tbody id="trades-tbody"><tr><td colspan="10" class="loading">Loading...</td></tr></tbody>
             </table>
           </div>
         </div>
       </div>
-
-      <!-- ══ RISK MONITOR PAGE ══ -->
-      <div id="page-risk" class="page">
+      <!-- RISK PAGE -->
+      <div class="page" id="page-risk">
         <div class="kpi-grid" id="risk-kpis"></div>
         <div class="grid-2 mb-4">
           <div class="card">
-            <div class="card-title">🔴 High Balance Traders (Real &gt; $500)</div>
-            <div id="high-balance-list" class="loading"><span class="spinner"></span></div>
+            <div class="card-title">High Balance Traders (&gt;$500)</div>
+            <div id="high-balance-list"><div class="loading">Loading...</div></div>
           </div>
           <div class="card">
-            <div class="card-title">⚡ High Win Rate Traders (&gt;65%)</div>
-            <div id="high-winrate-list" class="loading"><span class="spinner"></span></div>
+            <div class="card-title">High Win Rate Traders (&gt;65%, 10+ trades)</div>
+            <div id="high-winrate-list"><div class="loading">Loading...</div></div>
           </div>
         </div>
         <div class="card">
-          <div class="card-title">🚨 Recent Large Trades (&gt;$50 stake)</div>
-          <div id="large-trades-list" class="loading"><span class="spinner"></span></div>
+          <div class="card-title">Large Trades (&gt;$50 stake)</div>
+          <div id="large-trades-list"><div class="loading">Loading...</div></div>
         </div>
       </div>
 
-      <!-- ══ REFERRALS PAGE ══ -->
-      <div id="page-referrals" class="page">
+      <!-- REFERRALS PAGE -->
+      <div class="page" id="page-referrals">
         <div class="kpi-grid" id="referrals-kpis"></div>
         <div class="card">
-          <div class="card-title">Referral Chains</div>
           <div class="table-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th>Referrer</th>
-                  <th>Referee</th>
-                  <th>Referee Balance</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody id="referrals-tbody">
-                <tr><td colspan="4" class="loading"><span class="spinner"></span></td></tr>
-              </tbody>
+              <thead><tr><th>Referrer</th><th>Referee</th><th>Referee Balance</th><th>Date</th></tr></thead>
+              <tbody id="referrals-tbody"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody>
             </table>
           </div>
         </div>
       </div>
 
-      <!-- ══ SETTINGS PAGE ══ -->
-      <div id="page-settings" class="page">
+      <!-- SETTINGS PAGE -->
+      <div class="page" id="page-settings">
         <div class="grid-2">
           <div class="card">
             <div class="card-title">Platform Settings</div>
             <div class="form-group">
               <label class="form-label">Maintenance Mode</label>
               <select class="form-input" id="setting-maintenance">
-                <option value="off">Off — Platform Running</option>
-                <option value="on">On — Show Maintenance Page</option>
+                <option value="off">Off</option>
+                <option value="on">On</option>
               </select>
             </div>
             <div class="form-group">
@@ -812,34 +733,19 @@
               <input type="number" class="form-input" id="setting-min-withdraw" value="10" />
             </div>
             <div class="form-group">
-              <label class="form-label">Max Stake Per Trade (USD)</label>
+              <label class="form-label">Max Stake (USD)</label>
               <input type="number" class="form-input" id="setting-max-stake" value="1000" />
             </div>
             <div class="form-group">
-              <label class="form-label">KES Exchange Rate (per 1 USD)</label>
-              <input type="number" class="form-input" id="setting-kes-rate" value="129" />
+              <label class="form-label">KES/USD Rate</label>
+              <input type="number" class="form-input" id="setting-kes-rate" value="130" />
             </div>
-            <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="saveSettings()">Save Settings</button>
+            <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
           </div>
           <div class="card">
-            <div class="card-title">Admin Info</div>
-            <div class="trader-stat">
-              <span class="trader-stat-label">Logged in as</span>
-              <span class="trader-stat-value" id="admin-email-display">—</span>
-            </div>
-            <div class="trader-stat">
-              <span class="trader-stat-label">Supabase Project</span>
-              <span class="trader-stat-value font-mono" style="font-size:10px;">pqosxdaivzfyzzxnuxiy</span>
-            </div>
-            <div class="trader-stat">
-              <span class="trader-stat-label">Dashboard Version</span>
-              <span class="trader-stat-value">v2.0.0</span>
-            </div>
-            <div class="divider"></div>
             <div class="card-title">Danger Zone</div>
-            <button class="btn btn-red" style="width:100%;justify-content:center;margin-bottom:8px;" onclick="confirmResetDemo()">
-              Reset All Demo Balances to $10,000
-            </button>
+            <p style="font-size:12px;color:var(--muted);margin-bottom:16px;">These actions are irreversible. Use with caution.</p>
+            <button class="btn btn-red" onclick="confirmResetDemo()">Reset All Demo Balances to $10,000</button>
           </div>
         </div>
       </div>
@@ -848,11 +754,9 @@
   </div><!-- /main -->
 </div><!-- /app -->
 
-<!-- ══ MODALS ══ -->
-
 <!-- Trader Detail Modal -->
 <div class="modal-overlay" id="modal-trader">
-  <div class="modal" style="max-width:600px;">
+  <div class="modal" style="max-width:680px;">
     <div class="modal-header">
       <span class="modal-title" id="modal-trader-title">Trader Details</span>
       <button class="modal-close" onclick="closeModal('modal-trader')">✕</button>
@@ -892,8 +796,9 @@ const SUPABASE_URL = 'https://pqosxdaivzfyzzxnuxiy.supabase.co'
 const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxb3N4ZGFpdnpmeXp6eG51eGl5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg0MzYzNCwiZXhwIjoyMDkzNDE5NjM0fQ.HEkyoP4lZBA6uqCxFo2QXE-64yJuHErgjac2UTHVMLY'
 const ADMIN_EMAIL = 'admin@binaryflow.co.ke'
 
+// FIX: persistSession: true so the session survives page refresh
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
-  auth: { persistSession: false }
+  auth: { persistSession: true }
 })
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -911,12 +816,17 @@ function fmtDateShort(d) {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('en-GB', { day:'2-digit', month:'short' })
 }
+
+// FIX: track the active toast timer so overlapping toasts don't cancel each other
+let toastTimer = null
 function showToast(msg, type='success') {
   const t = document.getElementById('toast')
+  if (toastTimer) { clearTimeout(toastTimer); toastTimer = null }
   t.textContent = (type === 'success' ? '✓ ' : '✕ ') + msg
   t.className = 'show ' + type
-  setTimeout(() => t.className = '', 3000)
+  toastTimer = setTimeout(() => { t.className = ''; toastTimer = null }, 3000)
 }
+
 function closeModal(id) { document.getElementById(id).classList.remove('open') }
 function openModal(id) { document.getElementById(id).classList.add('open') }
 function statusBadge(s) {
@@ -941,6 +851,27 @@ function showConfirm(title, msg, onOk) {
 // ══════════════════════════════════════════════════════════════════════════
 let currentUser = null
 
+// FIX: check for existing session on every page load instead of always showing login
+async function checkSession() {
+  const { data: { session } } = await sb.auth.getSession()
+  if (!session) return false
+
+  const { data: profile } = await sb.from('profiles').select('role,email').eq('id', session.user.id).single()
+  const isAdmin = profile?.role === 'admin' || session.user.email === ADMIN_EMAIL
+  if (!isAdmin) {
+    await sb.auth.signOut()
+    return false
+  }
+
+  currentUser = session.user
+  document.getElementById('login-screen').style.display = 'none'
+  document.getElementById('app').style.display = 'flex'
+  const emailEl = document.getElementById('admin-email-display')
+  if (emailEl) emailEl.textContent = session.user.email
+  initDashboard()
+  return true
+}
+
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim()
   const pass  = document.getElementById('login-password').value
@@ -950,21 +881,22 @@ async function doLogin() {
   if (!email || !pass) { errEl.textContent = 'Enter email and password'; errEl.style.display = 'block'; return }
 
   const { data, error } = await sb.auth.signInWithPassword({ email, password: pass })
-if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return }
+  if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return }
 
-const { data: profile } = await sb.from('profiles').select('role,email').eq('id', data.user.id).single()
+  const { data: profile } = await sb.from('profiles').select('role,email').eq('id', data.user.id).single()
+  const isAdmin = profile?.role === 'admin' || email === ADMIN_EMAIL
+  if (!isAdmin) {
+    await sb.auth.signOut()
+    errEl.textContent = 'Access denied. Admin role required.'
+    errEl.style.display = 'block'
+    return
+  }
 
-const isAdmin = profile?.role === 'admin' || email === 'admin@binaryflow.co.ke'
-if (!isAdmin) {
-  await sb.auth.signOut()
-  errEl.textContent = 'Access denied. Admin role required.'
-  errEl.style.display = 'block'
-  return
-}
   currentUser = data.user
   document.getElementById('login-screen').style.display = 'none'
   document.getElementById('app').style.display = 'flex'
-  document.getElementById('admin-email-display').textContent = email
+  const emailEl = document.getElementById('admin-email-display')
+  if (emailEl) emailEl.textContent = email
   initDashboard()
 }
 
@@ -1004,13 +936,12 @@ function showPage(id, btn) {
 // ══════════════════════════════════════════════════════════════════════════
 function initDashboard() {
   loadDashboard()
-  setInterval(loadDashboard, 60000) // auto-refresh every 60s
+  setInterval(loadDashboard, 60000)
   document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString()
   setInterval(() => {
     document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString()
   }, 60000)
 }
-
 // ══════════════════════════════════════════════════════════════════════════
 //  DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════
@@ -1045,7 +976,6 @@ async function loadDashboard() {
     sb.from('withdrawals').select('*', { count:'exact', head:true }).eq('status','pending')
   ])
 
-  // Badge
   const badge = document.getElementById('pending-withdrawals-badge')
   if (pendingWithdrawals > 0) { badge.textContent = pendingWithdrawals; badge.style.display = 'inline'; }
   else badge.style.display = 'none'
@@ -1059,7 +989,7 @@ async function loadDashboard() {
   const realTrades = (allTrades||[]).filter(t => !t.is_demo)
   const wonTrades  = realTrades.filter(t => t.status === 'won')
   const lostTrades = realTrades.filter(t => t.status === 'lost')
-  const houseEdge  = realTrades.reduce((s,t) => s + (t.is_demo ? 0 : (t.status==='lost' ? t.stake : t.status==='won' ? -(t.payout||0) : 0)), 0)
+  const houseEdge  = realTrades.reduce((s,t) => s + (t.status==='lost' ? t.stake : t.status==='won' ? -(t.payout||0) : 0), 0)
 
   const todayReal  = (todayTrades||[]).filter(t => !t.is_demo)
   const todayWon   = todayReal.filter(t => t.status === 'won').length
@@ -1099,66 +1029,44 @@ async function loadDashboard() {
       <div class="kpi-sub">${wonTrades.length}W / ${lostTrades.length}L</div>
     </div>
     <div class="kpi-card cyan">
-      <div class="kpi-label">House Edge (Net)</div>
-      <div class="kpi-value ${houseEdge >= 0 ? 'text-green' : 'text-red'}">$${fmt(Math.abs(houseEdge))}</div>
-      <div class="kpi-sub">${houseEdge >= 0 ? '▲ Platform profit' : '▼ Platform loss'}</div>
-    </div>
-    <div class="kpi-card yellow">
-      <div class="kpi-label">Pending Withdrawals</div>
-      <div class="kpi-value">${pendingWithdrawals||0}</div>
-      <div class="kpi-sub">Awaiting approval</div>
+      <div class="kpi-label">House Edge (All-time)</div>
+      <div class="kpi-value ${houseEdge>=0?'text-green':'text-red'}">${houseEdge>=0?'+':''}$${fmt(houseEdge)}</div>
+      <div class="kpi-sub">Net from trades</div>
     </div>
   `
 
   // Charts
-  await buildDepositChart()
-  await buildTradesChart()
-  buildWinLossChart(wonTrades.length, lostTrades.length)
-  await buildTopTraders()
-await buildRecentActivity()
-}
-
-async function buildDepositChart() {
-  const days = 7
-  const labels = []; const data = []
-  for (let i = days-1; i >= 0; i--) {
+  const last7 = []
+  for (let i = 6; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0)
     const d2 = new Date(d); d2.setDate(d2.getDate() + 1)
-    labels.push(fmtDateShort(d))
-    const { data: deps } = await sb.from('deposits').select('amount_usd').eq('status','completed').gte('created_at', d.toISOString()).lt('created_at', d2.toISOString())
-    data.push((deps||[]).reduce((s,x) => s + (x.amount_usd||0), 0))
+    const dayTrades = realTrades.filter(t => {
+      const ct = new Date(t.created_at||'')
+      return ct >= d && ct < d2
+    })
+    last7.push({
+      label: fmtDateShort(d.toISOString()),
+      won: dayTrades.filter(t => t.status==='won').length,
+      lost: dayTrades.filter(t => t.status==='lost').length,
+    })
   }
-  destroyChart('deposits')
-  const ctx = document.getElementById('chart-deposits')
-  if (!ctx) return
-  charts['deposits'] = new Chart(ctx, {
-    type: 'bar',
-    data: { labels, datasets: [{ label: 'Deposits USD', data, backgroundColor: 'rgba(0,196,140,0.5)', borderColor: '#00C48C', borderWidth: 1, borderRadius: 4 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#5a6b8a', font:{size:10} }, grid: { color: '#1a2235' } }, y: { ticks: { color: '#5a6b8a', font:{size:10} }, grid: { color: '#1a2235' } } } }
-  })
-}
 
-async function buildTradesChart() {
-  const days = 7; const labels = []; const won = []; const lost = []
-  for (let i = days-1; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0)
-    const d2 = new Date(d); d2.setDate(d2.getDate() + 1)
-    labels.push(fmtDateShort(d))
-    const { data: trades } = await sb.from('positions').select('status').eq('is_demo', false).gte('created_at', d.toISOString()).lt('created_at', d2.toISOString())
-    won.push((trades||[]).filter(t => t.status === 'won').length)
-    lost.push((trades||[]).filter(t => t.status === 'lost').length)
-  }
   destroyChart('trades')
   const ctx = document.getElementById('chart-trades')
-  if (!ctx) return
-  charts['trades'] = new Chart(ctx, {
-    type: 'bar',
-    data: { labels, datasets: [
-      { label: 'Won', data: won, backgroundColor: 'rgba(0,196,140,0.5)', borderColor: '#00C48C', borderWidth: 1, borderRadius: 4 },
-      { label: 'Lost', data: lost, backgroundColor: 'rgba(255,71,87,0.5)', borderColor: '#FF4757', borderWidth: 1, borderRadius: 4 }
-    ]},
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#5a6b8a', font:{size:10} } } }, scales: { x: { stacked: true, ticks: { color: '#5a6b8a', font:{size:10} }, grid: { color: '#1a2235' } }, y: { stacked: true, ticks: { color: '#5a6b8a', font:{size:10} }, grid: { color: '#1a2235' } } } }
-  })
+  if (ctx) {
+    charts['trades'] = new Chart(ctx, {
+      type: 'bar',
+      data: { labels: last7.map(d=>d.label), datasets: [
+        { label: 'Won', data: last7.map(d=>d.won), backgroundColor: 'rgba(0,196,140,0.5)', borderColor: '#00C48C', borderWidth: 1, borderRadius: 4 },
+        { label: 'Lost', data: last7.map(d=>d.lost), backgroundColor: 'rgba(255,71,87,0.5)', borderColor: '#FF4757', borderWidth: 1, borderRadius: 4 }
+      ]},
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#5a6b8a', font:{size:10} } } }, scales: { x: { stacked: true, ticks: { color: '#5a6b8a', font:{size:10} }, grid: { color: '#1a2235' } }, y: { stacked: true, ticks: { color: '#5a6b8a', font:{size:10} }, grid: { color: '#1a2235' } } } }
+    })
+  }
+
+  buildWinLossChart(wonTrades.length, lostTrades.length)
+  buildTopTraders()
+  buildRecentActivity()
 }
 
 function buildWinLossChart(won, lost) {
@@ -1192,7 +1100,6 @@ async function buildTopTraders() {
 //  ANALYTICS
 // ══════════════════════════════════════════════════════════════════════════
 async function loadAnalytics() {
-  // Revenue chart (30 days)
   const labels = []; const revenues = []
   for (let i = 29; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0)
@@ -1212,7 +1119,6 @@ async function loadAnalytics() {
     })
   }
 
-  // New users (14 days)
   const ulabels = []; const udata = []
   for (let i = 13; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0)
@@ -1231,7 +1137,6 @@ async function loadAnalytics() {
     })
   }
 
-  // Trade types
   const { data: allTrades } = await sb.from('positions').select('trade_type').eq('is_demo', false)
   const types = {}; (allTrades||[]).forEach(t => { types[t.trade_type] = (types[t.trade_type]||0) + 1 })
   destroyChart('types')
@@ -1244,7 +1149,6 @@ async function loadAnalytics() {
     })
   }
 
-  // Analytics KPIs
   const { data: allDeps } = await sb.from('deposits').select('amount_usd').eq('status','completed')
   const { data: allWds }  = await sb.from('withdrawals').select('amount').eq('status','approved')
   const { count: totalTrades } = await sb.from('positions').select('*', { count:'exact', head:true }).eq('is_demo', false)
@@ -1289,7 +1193,6 @@ async function loadTraders() {
     trades: tradeMap[p.id] || { total:0, won:0, lost:0, stake:0, pl:0 }
   }))
 
-  // Populate balance manager select
   const sel = document.getElementById('balance-trader-select')
   if (sel) {
     sel.innerHTML = '<option value="">Select trader...</option>' +
@@ -1375,32 +1278,42 @@ async function openTraderDetail(uid) {
         <div class="trader-stat"><span class="trader-stat-label">Net P&L</span><span class="trader-stat-value ${t.trades.pl>=0?'text-green':'text-red'}">${t.trades.pl>=0?'+':''}$${fmt(t.trades.pl)}</span></div>
       </div>
     </div>
-    <div class="divider"></div>
+ <div class="divider"></div>
     <div class="card-title">Recent Deposits</div>
     <div class="table-wrap" style="margin-bottom:16px;">
-      <table><thead><tr><th>Amount</th><th>Method</th><th>Status</th><th>Date</th></tr></thead>
-      <tbody>${(deps||[]).map(d => `<tr><td class="mono">$${fmt(d.amount_usd)}</td><td>${d.method}</td><td>${statusBadge(d.status)}</td><td style="font-size:11px">${fmtDateShort(d.created_at)}</td></tr>`).join('') || '<tr><td colspan="4" class="loading">No deposits</td></tr>'}</tbody>
-      </table>
+      <table><thead><tr><th>Amount</th><th>KES</th><th>Method</th><th>Status</th><th>Date</th></tr></thead>
+      <tbody>${(deps||[]).length ? (deps||[]).map(d => `<tr>
+        <td class="mono text-green">$${fmt(d.amount_usd)}</td>
+        <td class="mono">KES ${fmt(d.amount_kes,0)}</td>
+        <td>${d.method||'mpesa'}</td>
+        <td>${statusBadge(d.status)}</td>
+        <td style="font-size:11px;color:var(--muted)">${fmtDate(d.created_at)}</td>
+      </tr>`).join('') : '<tr><td colspan="5" class="loading">No deposits</td></tr>'}</tbody></table>
     </div>
-    <div class="card-title">Recent Real Trades</div>
+    <div class="card-title">Recent Trades</div>
     <div class="table-wrap">
-      <table><thead><tr><th>Type</th><th>Dir</th><th>Stake</th><th>P&L</th><th>Status</th><th>Date</th></tr></thead>
-      <tbody>${(trades||[]).map(t => `<tr><td>${t.trade_type}</td><td>${t.direction}</td><td class="mono">$${fmt(t.stake)}</td><td class="mono ${(t.profit_loss||0)>=0?'text-green':'text-red'}">${(t.profit_loss||0)>=0?'+':''}$${fmt(t.profit_loss||0)}</td><td>${statusBadge(t.status)}</td><td style="font-size:11px">${fmtDateShort(t.created_at)}</td></tr>`).join('') || '<tr><td colspan="6" class="loading">No trades</td></tr>'}</tbody>
-      </table>
+      <table><thead><tr><th>Asset</th><th>Type</th><th>Stake</th><th>P&L</th><th>Status</th><th>Date</th></tr></thead>
+      <tbody>${(trades||[]).length ? (trades||[]).map(tr => `<tr>
+        <td style="font-size:11px">${tr.asset||'—'}</td>
+        <td style="font-size:11px">${tr.trade_type}</td>
+        <td class="mono">$${fmt(tr.stake)}</td>
+        <td class="mono ${(tr.profit_loss||0)>=0?'text-green':'text-red'}">${(tr.profit_loss||0)>=0?'+':''}$${fmt(tr.profit_loss||0)}</td>
+        <td>${statusBadge(tr.status)}</td>
+        <td style="font-size:11px;color:var(--muted)">${fmtDateShort(tr.created_at)}</td>
+      </tr>`).join('') : '<tr><td colspan="6" class="loading">No trades</td></tr>'}</tbody></table>
     </div>
   `
   openModal('modal-trader')
 }
 
 async function setTraderStatus(uid, status, email) {
-  const labels = { suspended: 'Suspend', banned: 'Ban', active: 'Activate' }
   showConfirm(
-    `${labels[status]} Trader`,
-    `Are you sure you want to ${labels[status].toLowerCase()} ${email}? This action will take effect immediately.`,
+    `${status.charAt(0).toUpperCase()+status.slice(1)} Trader`,
+    `Set ${email} status to "${status}"?`,
     async () => {
       const { error } = await sb.from('profiles').update({ status }).eq('id', uid)
       if (error) { showToast('Error: ' + error.message, 'error'); return }
-      showToast(`Trader ${labels[status].toLowerCase()}d successfully`)
+      showToast(`Trader ${status}`)
       loadTraders()
     }
   )
@@ -1409,27 +1322,45 @@ async function setTraderStatus(uid, status, email) {
 // ══════════════════════════════════════════════════════════════════════════
 //  KYC
 // ══════════════════════════════════════════════════════════════════════════
+let allKycData = []
+
 async function loadKyc() {
-  const { data } = await sb.from('profiles').select('*').order('created_at', { ascending: false })
+  const { data: profiles } = await sb.from('profiles').select('*').order('created_at', { ascending: false })
+  allKycData = profiles || []
+  renderKyc()
+}
+
+function renderKyc() {
+  const search  = document.getElementById('kyc-search')?.value.toLowerCase() || ''
+  const filter  = document.getElementById('kyc-filter')?.value || ''
+  const filtered = allKycData.filter(p => {
+    const ms = !search || (p.email||'').includes(search)
+    const mf = !filter || (filter === 'verified' ? p.kyc_verified : !p.kyc_verified)
+    return ms && mf
+  })
   const tbody = document.getElementById('kyc-tbody')
-  if (!data || !data.length) { tbody.innerHTML = '<tr><td colspan="5" class="loading">No users</td></tr>'; return }
-  tbody.innerHTML = data.map(p => `<tr>
-    <td><div style="font-weight:600">${p.full_name||'—'}</div><div style="font-size:11px;color:var(--muted)">${p.email}</div></td>
-    <td>${p.phone_number||'—'}</td>
-    <td style="font-size:11px;color:var(--muted)">${fmtDateShort(p.created_at)}</td>
-    <td>${p.kyc_verified ? statusBadge('completed') : statusBadge('pending')}</td>
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="6" class="loading">No results</td></tr>'; return }
+  tbody.innerHTML = filtered.map(p => `<tr>
+    <td><div style="font-weight:600">${p.full_name||'—'}</div></td>
+    <td style="font-size:12px">${p.email}</td>
+    <td style="font-size:12px">${p.phone_number||'—'}</td>
+    <td>${statusBadge(p.kyc_verified ? 'completed' : 'pending')}</td>
+    <td style="font-size:11px;color:var(--muted)">${fmtDate(p.created_at)}</td>
     <td>
-      ${!p.kyc_verified ? `<button class="btn btn-green btn-sm" onclick="setKyc('${p.id}', true, '${p.email}')">Approve KYC</button>` : ''}
-      ${p.kyc_verified ? `<button class="btn btn-red btn-sm" onclick="setKyc('${p.id}', false, '${p.email}')">Revoke KYC</button>` : ''}
+      ${!p.kyc_verified ? `<button class="btn btn-green btn-sm" onclick="approveKyc('${p.id}','${p.email}')">Approve KYC</button>` : '<span style="font-size:11px;color:var(--green)">Verified ✓</span>'}
     </td>
   </tr>`).join('')
 }
 
-async function setKyc(uid, val, email) {
-  const { error } = await sb.from('profiles').update({ kyc_verified: val }).eq('id', uid)
-  if (error) { showToast('Error: ' + error.message, 'error'); return }
-  showToast(`KYC ${val ? 'approved' : 'revoked'} for ${email}`)
-  loadKyc()
+function filterKyc() { renderKyc() }
+
+async function approveKyc(uid, email) {
+  showConfirm('Approve KYC', `Approve KYC for ${email}?`, async () => {
+    const { error } = await sb.from('profiles').update({ kyc_verified: true }).eq('id', uid)
+    if (error) { showToast('Error: ' + error.message, 'error'); return }
+    showToast('KYC approved for ' + email)
+    loadKyc()
+  })
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1486,15 +1417,11 @@ function renderDeposits() {
 
 function filterDeposits() { renderDeposits() }
 
-// ── updateDepositStatus — now credits wallet on manual approve ──
 async function updateDepositStatus(id, status) {
-  // Find the deposit to get user_id and amount
   const deposit = allDepositsData.find(d => d.id === id)
-
   const { error } = await sb.from('deposits').update({ status }).eq('id', id)
   if (error) { showToast('Error: ' + error.message, 'error'); return }
 
-  // If manually approving, credit the user's wallet
   if (status === 'completed' && deposit && deposit.user_id) {
     const { data: wallet } = await sb.from('wallets').select('real_balance').eq('user_id', deposit.user_id).single()
     if (wallet) {
@@ -1578,7 +1505,6 @@ async function updateWithdrawalStatus(id, status, userId, amount) {
       const { error } = await sb.from('withdrawals').update(updates).eq('id', id)
       if (error) { showToast('Error: ' + error.message, 'error'); return }
 
-      // If approving, deduct from real balance
       if (status === 'approved') {
         const { data: wallet } = await sb.from('wallets').select('real_balance').eq('user_id', userId).single()
         if (wallet) {
@@ -1591,24 +1517,22 @@ async function updateWithdrawalStatus(id, status, userId, amount) {
   )
 }
 
-  
-// ── Recent Activity Feed on Dashboard ──
+// ══════════════════════════════════════════════════════════════════════════
+//  RECENT ACTIVITY
+// ══════════════════════════════════════════════════════════════════════════
 async function buildRecentActivity() {
   const el = document.getElementById('recent-activity-feed')
   if (!el) return
 
-  // Fetch last 15 deposits + 15 withdrawals in parallel
   const [{ data: deps }, { data: wds }] = await Promise.all([
     sb.from('deposits').select('id, user_id, amount_usd, amount_kes, status, method, mpesa_receipt, created_at').order('created_at', { ascending: false }).limit(15),
     sb.from('withdrawals').select('id, user_id, amount, status, method, destination, created_at').order('created_at', { ascending: false }).limit(15),
   ])
 
-  // Collect all user IDs and fetch profiles once
   const uids = [...new Set([...(deps||[]).map(d=>d.user_id), ...(wds||[]).map(w=>w.user_id)].filter(Boolean))]
   const { data: profiles } = uids.length ? await sb.from('profiles').select('id, email, full_name').in('id', uids) : { data: [] }
   const pmap = {}; (profiles||[]).forEach(p => pmap[p.id] = p)
 
-  // Merge and sort
   const items = [
     ...(deps||[]).map(d => ({ ...d, _type: 'deposit',    _amount: d.amount_usd, _label: `Deposit via ${d.method||'M-Pesa'}`, _sub: d.mpesa_receipt || `KES ${d.amount_kes||0}` })),
     ...(wds||[]).map(w  => ({ ...w, _type: 'withdrawal', _amount: w.amount,     _label: `Withdrawal via ${w.method||'M-Pesa'}`, _sub: w.destination || '' })),
@@ -1639,13 +1563,12 @@ async function buildRecentActivity() {
     </tbody>
   </table></div>`
 }
-  
+
 // ══════════════════════════════════════════════════════════════════════════
 //  BALANCE MANAGER
 // ══════════════════════════════════════════════════════════════════════════
 async function loadBalances() {
   if (!allTraders.length) await loadTraders()
-  // Balance overview top 10
   const top = [...allTraders].sort((a,b) => (b.wallet.real_balance||0) - (a.wallet.real_balance||0)).slice(0, 10)
   const el = document.getElementById('balance-overview-list')
   el.innerHTML = top.map(t => `
@@ -1696,7 +1619,6 @@ async function adjustBalance() {
     }
   )
 }
-
 // ══════════════════════════════════════════════════════════════════════════
 //  TRADES
 // ══════════════════════════════════════════════════════════════════════════
@@ -1875,6 +1797,9 @@ document.addEventListener('keydown', e => {
 document.getElementById('login-password').addEventListener('keydown', e => {
   if (e.key === 'Enter') doLogin()
 })
+
+// FIX: On page load, check for an existing session before showing the login screen
+checkSession()
 </script>
 </body>
 </html>

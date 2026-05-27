@@ -252,7 +252,7 @@ export default function LandingPage() {
   const countries = useCounter(42, 1400, statsVisible)
 
   const testimonials = [
-    { name: 'James K.', role: 'Full-time Trader · Nairobi', profit: '+$12,840', text: 'Binaryflow changed how I see markets. The AI signals are genuinely accurate. I quit my 9-5 in 4 months.', stars: 5, avatar: 'JK' },
+    { name: 'James K.', role: 'Full-time Trader · Nairobi', profit: '+$12,840', text: 'FlowBinary changed how I see markets. The AI signals are genuinely accurate. I quit my 9-5 in 4 months.', stars: 5, avatar: 'JK' },
     { name: 'Amina W.', role: 'Part-time Trader · Mombasa', profit: '+$6,200', text: 'Started with the demo, learned fast. M-Pesa deposits make it so easy. Best platform for Kenyan traders.', stars: 5, avatar: 'AW' },
     { name: 'Brian M.', role: 'Prop Trader · Kampala', profit: '+$31,500', text: 'The volatility index trading is unmatched. Instant settlements, great UI. Nothing else comes close.', stars: 5, avatar: 'BM' },
   ]
@@ -317,8 +317,8 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center gap-3 flex-shrink-0">
-            <Image src="/logo.png" alt="Binaryflow" width={36} height={36} className="rounded-[9px]" />
-            <span className="font-display font-bold text-lg tracking-tight">Binaryflow</span>
+            <Image src="/logo.png" alt="FlowBinary" width={36} height={36} className="rounded-[9px]" />
+            <span className="font-display font-bold text-lg tracking-tight">FlowBinary</span>
           </div>
 
           {/* Desktop nav links */}
@@ -427,7 +427,7 @@ export default function LandingPage() {
                 <div className="w-3 h-3 rounded-full" style={{ background: 'rgba(239,68,68,0.7)' }} />
                 <div className="w-3 h-3 rounded-full" style={{ background: 'rgba(234,179,8,0.7)' }} />
                 <div className="w-3 h-3 rounded-full" style={{ background: 'rgba(34,197,94,0.7)' }} />
-                <span className="ml-3 text-xs font-mono hidden sm:block" style={{ color: '#5A6380' }}>Binaryflow.app/trade</span>
+                <span className="ml-3 text-xs font-mono hidden sm:block" style={{ color: '#5A6380' }}>FlowBinary.app/trade</span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="blink text-xs font-mono" style={{ color: '#00C48C' }}>● LIVE</span>
@@ -761,8 +761,8 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
             <div className="col-span-2 md:col-span-1">
               <div className="flex items-center gap-3 mb-4">
-                <Image src="/logo.png" alt="Binaryflow" width={32} height={32} className="rounded-[8px]" />
-                <span className="font-display font-bold text-base">Binaryflow</span>
+                <Image src="/logo.png" alt="FlowBinary" width={32} height={32} className="rounded-[8px]" />
+                <span className="font-display font-bold text-base">FlowBinary</span>
               </div>
               {/* FIX: was #2a3555 (near-invisible). Updated to #5A6380 for legibility */}
               <p className="text-sm leading-relaxed max-w-xs" style={{ color: '#5A6380' }}>
@@ -788,7 +788,7 @@ export default function LandingPage() {
 
           <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
             {/* FIX: copyright text was #2a3555. Updated to #5A6380 */}
-            <div className="text-xs font-mono text-center sm:text-left" style={{ color: '#5A6380' }}>© 2026 Binaryflow. All rights reserved. Trading involves risk.</div>
+            <div className="text-xs font-mono text-center sm:text-left" style={{ color: '#5A6380' }}>© 2026 FlowBinary. All rights reserved. Trading involves risk.</div>
             <div className="flex items-center gap-2">
               <span className="blink w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#00C48C' }} />
               <span className="text-xs font-mono" style={{ color: '#5A6380' }}>All systems operational</span>

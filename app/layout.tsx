@@ -2,21 +2,21 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "BinaryFlow",
+  title: "FlowBinary",
   description: "Advanced trading and analytics platform",
 
   openGraph: {
-    title: "BinaryFlow",
+    title: "FlowBinary",
     description: "Advanced trading and analytics platform",
     url: "https://yourdomain.com",
-    siteName: "BinaryFlow",
+    siteName: "FlowBinary",
 
     images: [
       {
         url: "/logo.png",
         width: 1200,
         height: 630,
-        alt: "BinaryFlow",
+        alt: "FlowBinary",
       },
     ],
 
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 
   twitter: {
     card: "summary_large_image",
-    title: "BinaryFlow",
+    title: "FlowBinary",
     description: "Advanced trading and analytics platform",
     images: ["/logo.png"],
   },

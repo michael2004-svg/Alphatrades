@@ -30,7 +30,10 @@ export const useUserStore = create<UserStore>((set) => ({
   user: null,
   profile: null,
   realBalance: 0,
-  demoBalance: 10000,
+  // FIX: start at 0, not 10000 — the real value is fetched from DB on login
+  // and set via setDemoBalance. Hardcoding 10000 here causes a flash of wrong
+  // balance if the DB fetch is slow or if the user's demo balance differs.
+  demoBalance: 0,
   isDemo: true,
   sessionPL: 0,
   sessionStats: { wins: 0, losses: 0, total: 0 },
@@ -40,6 +43,8 @@ export const useUserStore = create<UserStore>((set) => ({
   setRealBalance: (realBalance) => set({ realBalance }),
   setDemoBalance: (demoBalance) => set({ demoBalance }),
 
+  // NOTE: prefer setRealBalance(balance_after) over addToRealBalance after
+  // trade settlement — additive math drifts from DB truth over time.
   addToRealBalance: (amount) => set((state) => ({
     realBalance: Math.max(0, state.realBalance + amount),
   })),

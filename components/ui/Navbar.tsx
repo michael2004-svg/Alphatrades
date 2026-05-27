@@ -65,9 +65,9 @@ export default function Navbar() {
 
         {/* Logo */}
         <div className="flex items-center gap-2.5 flex-shrink-0 cursor-pointer" onClick={() => router.push('/trade')}>
-          <Image src="/logo.png" alt="Binaryflow" width={36} height={36} className="rounded-[10px]" />
+          <Image src="/logo.png" alt="FlowBinary" width={36} height={36} className="rounded-[10px]" />
           <span className="font-display font-bold text-xl text-white hidden sm:block tracking-tight">
-            Binaryflow
+            FlowBinary
           </span>
         </div>
 
