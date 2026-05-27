@@ -74,6 +74,9 @@ export default function Navbar() {
         setProfile(null)
         setRealBalance(0)
         setDemoBalance(0)
+        // FIX: navigate to login from inside the listener so it always
+        // fires even if the component has already unmounted after signOut()
+        router.push('/login')
       }
     })
 
@@ -81,7 +84,6 @@ export default function Navbar() {
   }, [])
 
   // ── Realtime wallet balance updates ──────────────────────────────────
-  // This ensures balance stays in sync if another tab or the server updates it
   useEffect(() => {
     if (!user) return
 
@@ -106,9 +108,14 @@ export default function Navbar() {
     return () => { supabase.removeChannel(channel) }
   }, [user])
 
+  // FIX: close dropdown first, then sign out — prevents the backdrop
+  // onClick intercepting the button click and swallowing the logout action.
+  // Also moved router.push into onAuthStateChange SIGNED_OUT handler above
+  // so navigation always fires regardless of component mount state.
   const handleLogout = async () => {
+    setAccountOpen(false)
     await supabase.auth.signOut()
-    router.push('/login')
+    // router.push('/login') is now handled by the SIGNED_OUT listener above
   }
 
   const handleDeposit = () => {
@@ -215,7 +222,13 @@ export default function Navbar() {
 
               {accountOpen && (
                 <>
-                  <div className="fixed inset-0 z-40" onClick={() => setAccountOpen(false)} />
+                  {/* FIX: backdrop uses onMouseDown + preventDefault to prevent it
+                      from stealing focus away from dropdown buttons on click */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setAccountOpen(false)}
+                  />
                   <div className="absolute right-0 top-full mt-2 w-64 bg-[#070d1a] border border-[#1a2235] rounded-xl shadow-2xl z-50 overflow-hidden">
                     {/* Balance summary */}
                     <div className="p-4 border-b border-[#1a2235]">

