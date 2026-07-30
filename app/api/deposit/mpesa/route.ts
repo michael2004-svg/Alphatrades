@@ -9,6 +9,27 @@ const supabase = createClient(
 const MPESA_BASE_URL = process.env.NEXT_PUBLIC_MPESA_BASE_URL!
 const MPESA_SECRET_KEY = process.env.MPESA_SECRET_KEY!
 
+// Normalizes Kenyan numbers to the 2547XXXXXXXX / 2541XXXXXXXX format Safaricom expects.
+// Accepts: 0712345678, 712345678, +254712345678, 254712345678
+function normalizePhone(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '') // strip spaces, +, dashes, etc.
+
+  let normalized: string | null = null
+
+  if (/^0[71]\d{8}$/.test(digits)) {
+    // 07XXXXXXXX or 01XXXXXXXX -> drop leading 0, prefix 254
+    normalized = '254' + digits.slice(1)
+  } else if (/^[71]\d{8}$/.test(digits)) {
+    // 7XXXXXXXX or 1XXXXXXXX -> prefix 254
+    normalized = '254' + digits
+  } else if (/^254[71]\d{8}$/.test(digits)) {
+    // already correct
+    normalized = digits
+  }
+
+  return normalized
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { amount, phone } = await req.json()
@@ -19,6 +40,11 @@ export async function POST(req: NextRequest) {
 
     if (amount < 100) {
       return NextResponse.json({ error: 'Minimum deposit is KES 100' }, { status: 400 })
+    }
+
+    const normalizedPhone = normalizePhone(String(phone))
+    if (!normalizedPhone) {
+      return NextResponse.json({ error: 'Invalid M-Pesa phone number' }, { status: 400 })
     }
 
     // Get auth token from request
@@ -39,10 +65,10 @@ export async function POST(req: NextRequest) {
         'X-API-Key': MPESA_SECRET_KEY,
       },
       body: JSON.stringify({
-        phoneNumber: phone,
+        phoneNumber: normalizedPhone,
         amount,
         accountReference: `DEP-${userId?.slice(0, 8) || 'guest'}`,
-        transactionDesc: 'TagOption Deposit',
+        transactionDesc: 'binaryflow Deposit',
       }),
     })
 
