@@ -21,7 +21,7 @@ export default function ForgotPasswordPage() {
     if (!email) { setError('Please enter your email address'); return }
     setLoading(true)
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: 'https://flowbinary.com/reset-password', // hardcoded — do not use window.location.origin
     })
     setLoading(false)
     if (resetError) {
