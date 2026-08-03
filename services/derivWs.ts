@@ -4,8 +4,9 @@ type StatusCallback = (status: 'connecting' | 'connected' | 'disconnected') => v
 const APP_ID  = process.env.NEXT_PUBLIC_DERIV_APP_ID || '1089'
 const WS_URL  = `wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`
 const DEFAULT_ASSET   = '1HZ10V'
-// Preload exactly 100 ticks so the chart fills on first render
 const PRELOAD_COUNT   = 100
+// NEW: if no tick arrives within this window while "connected", treat the socket as dead
+const TICK_STALE_MS = 8000
 
 class DerivWebSocket {
   private ws: WebSocket | null = null
@@ -15,10 +16,11 @@ class DerivWebSocket {
   private statusCallbacks: StatusCallback[] = []
   private reconnectTimer: NodeJS.Timeout | null = null
   private pingTimer: NodeJS.Timeout | null = null
+  private watchdogTimer: NodeJS.Timeout | null = null   // NEW
+  private lastTickAt = 0                                  // NEW
   private reconnectDelay = 1000
   private isIntentionalClose = false
 
-  // Map of req_id → { resolve, timer }
   private historyListeners = new Map<number, {
     resolve: (prices: number[]) => void
     timer: NodeJS.Timeout
@@ -38,7 +40,8 @@ class DerivWebSocket {
       this.reconnectDelay = 1000
       this.setStatus('connected')
       this.startPing()
-      // Immediately preload 100 ticks then subscribe
+      this.startWatchdog()          // NEW
+      this.lastTickAt = Date.now()  // NEW — reset baseline on fresh connect
       this.preloadThenSubscribe(this.currentAsset)
     }
 
@@ -51,40 +54,57 @@ class DerivWebSocket {
     this.ws.onclose = () => {
       this.setStatus('disconnected')
       this.stopPing()
+      this.stopWatchdog()           // NEW
       if (!this.isIntentionalClose) this.scheduleReconnect()
     }
   }
 
-  // ── Preload 100 historical ticks, then start live subscription ────────
+  // NEW: periodically check whether ticks are still arriving
+  private startWatchdog() {
+    this.stopWatchdog()
+    this.watchdogTimer = setInterval(() => {
+      const silentFor = Date.now() - this.lastTickAt
+      if (silentFor > TICK_STALE_MS) {
+        console.warn('[Deriv WS] Stale connection detected — forcing reconnect')
+        this.forceReconnect()
+      }
+    }, 3000)
+  }
+
+  private stopWatchdog() {
+    if (this.watchdogTimer) { clearInterval(this.watchdogTimer); this.watchdogTimer = null }
+  }
+
+  // NEW: tear down the dead socket and reconnect immediately
+  private forceReconnect() {
+    this.stopPing()
+    this.stopWatchdog()
+    if (this.ws) {
+      this.ws.onclose = null   // prevent double-handling
+      this.ws.close()
+      this.ws = null
+    }
+    this.setStatus('disconnected')
+    this.connect()
+  }
+
   private preloadThenSubscribe(asset: string) {
     const reqId = Date.now()
-
     const timer = setTimeout(() => {
       this.historyListeners.delete(reqId)
-      // Timeout — just subscribe live without history
       this.doSubscribe(asset)
     }, 8000)
-
     this.historyListeners.set(reqId, {
       resolve: (prices) => {
-        // Feed historical ticks into the store so chart is pre-filled
         prices.forEach((price) => {
           const digit = parseInt(price.toFixed(2).slice(-1), 10)
           this.tickCallbacks.forEach(cb => cb(price, digit, 0))
         })
-        // Now subscribe for live ticks
         this.doSubscribe(asset)
       },
       timer,
     })
-
-    this.send({
-      ticks_history: asset,
-      count: PRELOAD_COUNT,
-      end: 'latest',
-      style: 'ticks',
-      req_id: reqId,
-    })
+    this.send({ ticks_history: asset, count: PRELOAD_COUNT, end: 'latest', style: 'ticks', req_id: reqId })
   }
 
   private handleMessage(data: any) {
@@ -92,15 +112,14 @@ class DerivWebSocket {
       console.error('[Deriv WS]', data.error.code, data.error.message)
       return
     }
-
     if (data.msg_type === 'tick') {
       const { quote, epoch, id } = data.tick
       if (id) this.subscriptionId = id
       const price  = parseFloat(quote)
       const digit  = parseInt(price.toFixed(2).slice(-1), 10)
+      this.lastTickAt = Date.now()   // NEW — mark that a tick actually arrived
       this.tickCallbacks.forEach(cb => cb(price, digit, epoch))
     }
-
     if (data.msg_type === 'history') {
       const reqId: number = data.echo_req?.req_id
       const listener = this.historyListeners.get(reqId)
@@ -120,9 +139,9 @@ class DerivWebSocket {
     this.send({ ticks: asset, subscribe: 1 })
   }
 
-  /** Change asset: preload history for new asset then subscribe */
   subscribe(asset: string) {
     this.currentAsset = asset
+    this.lastTickAt = Date.now()   // NEW — reset baseline on manual asset switch too
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.preloadThenSubscribe(asset)
     } else {
@@ -130,7 +149,6 @@ class DerivWebSocket {
     }
   }
 
-  /** Used by the scanner to pull history for analysis */
   getHistory(asset: string, count = 100): Promise<number[]> {
     return new Promise((resolve) => {
       if (this.ws?.readyState !== WebSocket.OPEN) { resolve([]); return }
@@ -184,17 +202,16 @@ class DerivWebSocket {
   disconnect() {
     this.isIntentionalClose = true
     this.stopPing()
+    this.stopWatchdog()
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
     this.ws?.close()
   }
 }
 
-// ── Singleton — connects eagerly on first import (browser only) ─────────────
 let _instance: DerivWebSocket | null = null
 
 export function getDerivWs(): DerivWebSocket {
   if (typeof window === 'undefined') {
-    // SSR stub
     return {
       connect: () => {}, subscribe: () => {}, disconnect: () => {},
       onTick: () => () => {}, onStatus: () => () => {},
@@ -203,7 +220,7 @@ export function getDerivWs(): DerivWebSocket {
   }
   if (!_instance) {
     _instance = new DerivWebSocket()
-    _instance.connect() // connect immediately on module load
+    _instance.connect()
   }
   return _instance
 }
