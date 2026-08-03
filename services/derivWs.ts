@@ -2,7 +2,7 @@ type TickCallback = (price: number, digit: number, epoch: number) => void
 type StatusCallback = (status: 'connecting' | 'connected' | 'disconnected') => void
 
 const APP_ID  = process.env.NEXT_PUBLIC_DERIV_APP_ID || '1089'
-const WS_URL  = `wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`
+const WS_URL  = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`
 const DEFAULT_ASSET   = '1HZ10V'
 const PRELOAD_COUNT   = 100
 // NEW: if no tick arrives within this window while "connected", treat the socket as dead
